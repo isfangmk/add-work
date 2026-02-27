@@ -1,0 +1,38 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv
+.venv
+env
+ENV
+
+# Node
+node_modules
+npm-debug.log
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Build artifacts (not needed since Dockerfile copies build/)
+frontend/node_modules
+frontend/src
+frontend/public
+frontend/package*.json
+frontend/tailwind.config.js
+frontend/postcss.config.js
+
+# Misc
+*.md
+.env
+.env.*
+*.db
