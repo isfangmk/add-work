@@ -1,5 +1,6 @@
 const COOKIE_KEY = 'savedCookie';
 const EXPIRY_KEY = 'cookieExpiry';
+const WELCOME_HIDE_KEY = 'welcomePromoHidden';
 const YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 
 export function saveCookie(cookie) {
@@ -19,6 +20,14 @@ export function loadCookie() {
   localStorage.removeItem(COOKIE_KEY);
   localStorage.removeItem(EXPIRY_KEY);
   return '';
+}
+
+export function shouldShowWelcomePromo() {
+  return localStorage.getItem(WELCOME_HIDE_KEY) !== '1';
+}
+
+export function hideWelcomePromo() {
+  localStorage.setItem(WELCOME_HIDE_KEY, '1');
 }
 
 export function hasValidDays(data) {

@@ -10,12 +10,14 @@ import AppHeader from './components/AppHeader';
 import AppFooter from './components/AppFooter';
 import Section from './components/Section';
 import CookiePanel from './components/CookiePanel';
+import WelcomePromoModal from './components/WelcomePromoModal';
 
 export default function App() {
   const app = useWorkHoursApp();
 
   return (
     <div className="app-page">
+      <WelcomePromoModal />
       <Card className="app-shell">
         <AppHeader />
 

@@ -263,6 +263,111 @@ body {
   background: linear-gradient(180deg, rgba(248, 249, 250, 0.55) 0%, transparent 100%);
 }
 
+.welcome-promo-modal .ant-modal-content {
+  padding: 0;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.welcome-promo-modal .ant-modal-body {
+  padding: 0;
+}
+
+.welcome-promo {
+  padding: 24px 24px 20px;
+}
+
+.welcome-promo-hero {
+  margin-bottom: 16px;
+}
+
+.welcome-promo-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  margin-bottom: 8px;
+  border-radius: 999px;
+  background: #edf9f2;
+  color: #1e8449;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.welcome-promo-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 650;
+  line-height: 1.3;
+  color: rgba(0, 0, 0, 0.88);
+}
+
+.welcome-promo-lead {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.65;
+  color: rgba(0, 0, 0, 0.55);
+}
+
+.welcome-promo-list {
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  list-style: none;
+  border-radius: 10px;
+  background: #f8f9fa;
+  border: 1px solid #f0f0f0;
+}
+
+.welcome-promo-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: rgba(0, 0, 0, 0.75);
+}
+
+.welcome-promo-list li + li {
+  margin-top: 10px;
+}
+
+.welcome-promo-list-icon {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: #fff;
+  color: #27ae60;
+  border: 1px solid #e8f5ee;
+  font-size: 13px;
+}
+
+.welcome-promo-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.welcome-promo-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.welcome-promo-ok.ant-btn-primary {
+  min-width: 96px;
+  background: #27ae60 !important;
+  border-color: #27ae60 !important;
+}
+
+.welcome-promo-ok.ant-btn-primary:hover {
+  background: #219150 !important;
+  border-color: #219150 !important;
+}
+
 .app-footer-inner {
   display: flex;
   flex-wrap: wrap;
