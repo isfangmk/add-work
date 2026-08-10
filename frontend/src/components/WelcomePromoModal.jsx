@@ -14,7 +14,7 @@ const SHARE_TEXT =
   '推荐一个添加工时工具：周历选源事项一键克隆，还支持 AI 帮写，省去重复填报。';
 
 const HIGHLIGHTS = [
-  { icon: <ThunderboltOutlined />, text: '选源事项后批量克隆，少填重复字段' },
+  { icon: <ThunderboltOutlined />, text: '一次填写一周的工时' },
   { icon: <CheckCircleOutlined />, text: 'AI 帮写按 Git 提交生成工时草稿' },
   { icon: <ShareAltOutlined />, text: '转发给同事，一起少花时间在填报上' }
 ];

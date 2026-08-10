@@ -273,6 +273,22 @@ body {
   padding: 0;
 }
 
+.welcome-promo-modal .ant-modal-close {
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  background: transparent !important;
+}
+
+.welcome-promo-modal .ant-modal-close:hover,
+.welcome-promo-modal .ant-modal-close:focus,
+.welcome-promo-modal .ant-modal-close:focus-visible {
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  background: transparent !important;
+}
+
 .welcome-promo {
   padding: 24px 24px 20px;
 }

@@ -13,7 +13,7 @@ export default function CookiePanel({ cookie, onChange, username }) {
   const [expanded, setExpanded] = useState(!filled);
 
   useEffect(() => {
-    if (!filled) setExpanded(true);
+    setExpanded(!filled);
   }, [filled]);
 
   return (
