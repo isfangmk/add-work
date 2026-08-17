@@ -46,6 +46,9 @@ class Settings:
     )
 
     path_prefix: str = "/add-work"
+    sqlite_web_password: str = field(
+        default_factory=lambda: os.getenv("SQLITE_WEB_PASSWORD", "")
+    )
 
     def build_headers(self, cookie: Optional[str] = None) -> Dict[str, str]:
         headers = {

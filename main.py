@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import os
 import sys
 from contextlib import asynccontextmanager
@@ -24,7 +25,9 @@ from app.http_client import close_http_client  # noqa: E402
 from app.keepalive import restore_on_startup  # noqa: E402
 from app.logger import get_logger  # noqa: E402
 from app.schemas import ApiResponse  # noqa: E402
-from fastapi_sqlite_ui import mount_sqlite_ui  # noqa: E402
+from sqlite_web.sqlite_web import app as sqlite_web_app  # noqa: E402
+from sqlite_web.sqlite_web import initialize_app as init_sqlite_web  # noqa: E402
+from starlette.middleware.wsgi import WSGIMiddleware  # noqa: E402
 
 logger = get_logger(__name__)
 
@@ -54,16 +57,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 开源 SQLite 管理页：https://pypi.org/project/fastapi-sqlite-ui/
+# English SQLite browser: https://github.com/coleifer/sqlite-web
 _db_path = Path(settings.db_path)
 if not _db_path.is_absolute():
     _db_path = BASE_DIR / _db_path
-mount_sqlite_ui(
-    app,
-    db_path=str(_db_path),
-    mount_path=f"{PREFIX}/sqlite",
-    read_only=False,
-)
+_sqlite_password = settings.sqlite_web_password
+init_sqlite_web([str(_db_path)], read_only=False, password=_sqlite_password or None)
+if _sqlite_password:
+    _key = b"sqlite-web-" + str(_db_path).encode("utf8") + _sqlite_password.encode("utf8")
+    sqlite_web_app.secret_key = hashlib.sha256(_key).hexdigest()
+else:
+    logger.warning("SQLITE_WEB_PASSWORD 未配置，/sqlite 可匿名访问")
+app.mount(f"{PREFIX}/sqlite", WSGIMiddleware(sqlite_web_app))
 
 
 @app.get("/")

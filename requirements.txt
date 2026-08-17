@@ -3,4 +3,4 @@ uvicorn[standard]>=0.22.0
 httpx>=0.25.0
 openai>=2.13.0
 python-dotenv>=1.0.0
-fastapi-sqlite-ui>=1.0.0
+sqlite-web>=0.8.0
