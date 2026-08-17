@@ -3,12 +3,14 @@ import { Modal } from 'antd';
 import {
   BookOutlined,
   CodeOutlined,
+  DatabaseOutlined,
   MessageOutlined
 } from '@ant-design/icons';
 import FeedbackModal from './FeedbackModal';
 
 const REPO_URL = 'https://github.com/isfangmk/add-work';
 const APP_VERSION = 'v2.0';
+const SQLITE_UI_URL = '/add-work/sqlite/';
 
 export default function AppFooter({ username }) {
   const [helpOpen, setHelpOpen] = useState(false);
@@ -30,6 +32,18 @@ export default function AppFooter({ username }) {
           >
             <CodeOutlined />
             源码
+          </a>
+          <span className="footer-sep" aria-hidden>
+            ·
+          </span>
+          <a
+            className="footer-link"
+            href={SQLITE_UI_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <DatabaseOutlined />
+            数据库
           </a>
           <span className="footer-sep" aria-hidden>
             ·

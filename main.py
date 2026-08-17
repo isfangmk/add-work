@@ -24,6 +24,7 @@ from app.http_client import close_http_client  # noqa: E402
 from app.keepalive import restore_on_startup  # noqa: E402
 from app.logger import get_logger  # noqa: E402
 from app.schemas import ApiResponse  # noqa: E402
+from fastapi_sqlite_ui import mount_sqlite_ui  # noqa: E402
 
 logger = get_logger(__name__)
 
@@ -51,6 +52,17 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
+)
+
+# 开源 SQLite 管理页：https://pypi.org/project/fastapi-sqlite-ui/
+_db_path = Path(settings.db_path)
+if not _db_path.is_absolute():
+    _db_path = BASE_DIR / _db_path
+mount_sqlite_ui(
+    app,
+    db_path=str(_db_path),
+    mount_path=f"{PREFIX}/sqlite",
+    read_only=False,
 )
 
 
