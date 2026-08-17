@@ -3,6 +3,7 @@ const PREFIX = '/add-work';
 export const API_BASE = isDev ? `http://127.0.0.1:5000${PREFIX}` : PREFIX;
 
 export const API = {
+  currentUser: `${API_BASE}/get-current-user`,
   workItems: `${API_BASE}/get-work-items-by-range`,
   startTask: `${API_BASE}/start-task`,
   taskStatus: `${API_BASE}/task-status`,
@@ -18,6 +19,10 @@ async function postJson(url, body) {
     body: JSON.stringify(body)
   });
   return res.json();
+}
+
+export function fetchCurrentUser(cookie) {
+  return postJson(API.currentUser, { cookie });
 }
 
 export function fetchWorkItems(payload) {

@@ -20,6 +20,21 @@ from app.task_store import append_log, finish_task
 logger = get_logger(__name__)
 
 
+async def resolve_current_user(cookie: str) -> Tuple[Optional[str], Optional[str]]:
+    """根据 Cookie 解析当前用户，并按需启动保活。"""
+    headers = settings.build_headers(cookie)
+    username, git_email = await gitee.fetch_current_user(headers)
+    if not username:
+        return None, None
+
+    cookie_str = headers["cookie"]
+    if not get_cookie_record(username):
+        save_cookie_record(username, cookie_str)
+    if not is_active(username):
+        await start_keepalive(username, cookie_str)
+    return username, git_email
+
+
 async def load_calendar_items(
     headers: Dict[str, str],
     start_date: str,
@@ -27,16 +42,7 @@ async def load_calendar_items(
     username: Optional[str] = None,
     git_email: Optional[str] = None,
 ) -> Tuple[Optional[List[Any]], Optional[str], Optional[str]]:
-    """拉取日历工时；必要时保存 cookie 并启动保活。"""
-    if not username:
-        username, git_email = await gitee.fetch_current_user(headers)
-        if username:
-            cookie_str = headers["cookie"]
-            if not get_cookie_record(username):
-                save_cookie_record(username, cookie_str)
-            if not is_active(username):
-                await start_keepalive(username, cookie_str)
-
+    """拉取日历工时（需已有 username）。"""
     if not username:
         return None, None, None
 

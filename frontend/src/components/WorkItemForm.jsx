@@ -30,17 +30,19 @@ export default function WorkItemForm({
 
   useEffect(() => {
     let cancelled = false;
+    const workspace = sourceItem?.workspace_name;
+    const preferredSprint = sourceItem?.sprint_id;
     (async () => {
-      if (!sourceItem?.workspace_name || !cookie?.trim()) {
+      if (!workspace || !cookie?.trim()) {
         setSprints([]);
         return;
       }
       try {
-        const data = await fetchSprints(cookie, sourceItem.workspace_name);
+        const data = await fetchSprints(cookie, workspace);
         if (cancelled || !data.success) return;
         const list = [...(data.data || [])].sort((a, b) => {
-          if (a.object_id === sourceItem.sprint_id) return -1;
-          if (b.object_id === sourceItem.sprint_id) return 1;
+          if (a.object_id === preferredSprint) return -1;
+          if (b.object_id === preferredSprint) return 1;
           return 0;
         });
         setSprints(list);
@@ -52,7 +54,7 @@ export default function WorkItemForm({
     return () => {
       cancelled = true;
     };
-  }, [sourceItem, cookie]);
+  }, [sourceItem?.workspace_name, sourceItem?.sprint_id, cookie]);
 
   const handleSubmit = () => {
     const invalid = workItems.some((item) => {

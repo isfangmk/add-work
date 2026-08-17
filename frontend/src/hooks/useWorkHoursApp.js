@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { App } from 'antd';
 import {
+  fetchCurrentUser,
   fetchLlmSummary,
   fetchWorkItems,
   pollTaskStatus,
@@ -17,10 +18,22 @@ import {
 
 const EMPTY_ITEM = { name: '', time: '', date: '', sprint_id: '' };
 
+function pickLatestSourceItem(data) {
+  if (!hasValidDays(data)) return null;
+  const dates = Object.entries(data)
+    .filter(([, items]) => Array.isArray(items) && items.length > 0)
+    .map(([d]) => d)
+    .sort();
+  if (!dates.length) return null;
+  const items = data[dates[dates.length - 1]] || [];
+  return items.length ? items[items.length - 1] : null;
+}
+
 export function useWorkHoursApp() {
   const { message } = App.useApp();
   const calendarRef = useRef(null);
   const pollRef = useRef(null);
+  const prevCookieRef = useRef('');
 
   const [cookie, setCookie] = useState('');
   const [username, setUsername] = useState(null);
@@ -55,78 +68,106 @@ export function useWorkHoursApp() {
   const onCookieChange = useCallback((value) => {
     setCookie(value);
     saveCookie(value);
+    setUsername(null);
+    setGitEmail(null);
+    setSourceItem(null);
+    setAutoSelected(false);
+    prevCookieRef.current = '';
   }, []);
 
-  const loadWeek = useCallback(async () => {
-    if (!cookie.trim()) return null;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await fetchWorkItems({
-        cookie,
-        startDate: formatDate(weekRange.monday),
-        endDate: formatDate(weekRange.sunday),
-        username: username || '',
-        gitEmail: gitEmail || ''
-      });
-      if (!data.success) {
-        setError(data.msg || '获取工时数据失败');
+  const loadWeek = useCallback(
+    async (uname = username, email = gitEmail) => {
+      if (!cookie.trim() || !uname) return null;
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await fetchWorkItems({
+          cookie,
+          startDate: formatDate(weekRange.monday),
+          endDate: formatDate(weekRange.sunday),
+          username: uname,
+          gitEmail: email || ''
+        });
+        if (!data.success) {
+          setError(data.msg || '获取工时数据失败');
+          setCalendarData({});
+          return null;
+        }
+        setCalendarData(hasValidDays(data.data) ? data.data : {});
+        return data;
+      } catch {
+        setError('网络错误');
         setCalendarData({});
         return null;
+      } finally {
+        setLoading(false);
       }
-      setCalendarData(hasValidDays(data.data) ? data.data : {});
-      if (data.username) setUsername(data.username);
-      if (data.gitEmail) setGitEmail(data.gitEmail);
-      return data;
-    } catch {
-      setError('网络错误');
-      setCalendarData({});
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, [cookie, weekRange.monday, weekRange.sunday, username, gitEmail]);
+    },
+    [cookie, weekRange.monday, weekRange.sunday, username, gitEmail]
+  );
 
   useEffect(() => {
-    if (cookie.trim()) loadWeek();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cookie, weekOffset]);
-
-  useEffect(() => {
-    if (!cookie.trim() || sourceItem || autoSelected) return;
+    if (!cookie.trim()) return undefined;
+    let cancelled = false;
 
     (async () => {
-      for (let offset = 0; offset >= -3; offset -= 1) {
-        const { monday, sunday } = getWeekRange(offset);
-        try {
-          const data = await fetchWorkItems({
-            cookie,
-            startDate: formatDate(monday),
-            endDate: formatDate(sunday),
-            username: username || '',
-            gitEmail: gitEmail || ''
-          });
-          if (!data.success || !hasValidDays(data.data)) continue;
+      const cookieChanged = prevCookieRef.current !== cookie;
+      if (cookieChanged) prevCookieRef.current = cookie;
+      const needSelect = cookieChanged || (!autoSelected && !sourceItem);
 
-          const dates = Object.entries(data.data)
-            .filter(([, items]) => Array.isArray(items) && items.length > 0)
-            .map(([d]) => d)
-            .sort();
-          if (!dates.length) continue;
-
-          const items = data.data[dates[dates.length - 1]] || [];
-          if (!items.length) continue;
-
-          setSourceItem(items[items.length - 1]);
-          setAutoSelected(true);
+      let uname = cookieChanged ? null : username;
+      let email = cookieChanged ? null : gitEmail;
+      if (!uname) {
+        const userRes = await fetchCurrentUser(cookie);
+        if (cancelled) return;
+        if (!userRes.success || !userRes.data?.username) {
+          setError(userRes.msg || '获取用户信息失败，请检查 Cookie');
+          setCalendarData({});
           return;
-        } catch {
-          break;
+        }
+        uname = userRes.data.username;
+        email = userRes.data.gitEmail || '';
+        setUsername(uname);
+        setGitEmail(email);
+      }
+
+      const data = await loadWeek(uname, email);
+      if (cancelled) return;
+      if (!needSelect) return;
+
+      let picked = pickLatestSourceItem(data?.data);
+      if (!picked) {
+        const startOffset = weekOffset === 0 ? -1 : 0;
+        for (let offset = startOffset; offset >= -3; offset -= 1) {
+          if (offset === weekOffset) continue;
+          const { monday, sunday } = getWeekRange(offset);
+          try {
+            const hist = await fetchWorkItems({
+              cookie,
+              startDate: formatDate(monday),
+              endDate: formatDate(sunday),
+              username: uname,
+              gitEmail: email || ''
+            });
+            if (cancelled) return;
+            picked = pickLatestSourceItem(hist?.data);
+            if (picked) break;
+          } catch {
+            break;
+          }
         }
       }
+
+      if (cancelled) return;
+      if (picked) setSourceItem(picked);
       setAutoSelected(true);
     })();
-  }, [cookie, username, gitEmail, sourceItem, autoSelected]);
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cookie, weekOffset]);
 
   const beginPoll = useCallback(
     (taskId, onDone) => {

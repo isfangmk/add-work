@@ -23,8 +23,12 @@ class WorkItemsRequest(BaseModel):
     cookie: str
     startDate: str
     endDate: str
-    username: Optional[str] = None
+    username: str = Field(..., min_length=1)
     gitEmail: Optional[str] = None
+
+
+class CurrentUserRequest(BaseModel):
+    cookie: str
 
 
 class StartTaskRequest(BaseModel):

@@ -22,17 +22,19 @@ export default function EditItemModal({ open, item, cookie, onClose, onSubmit })
 
   useEffect(() => {
     let cancelled = false;
+    const workspace = item?.workspace_name;
+    const preferredSprint = item?.sprint_id;
     (async () => {
-      if (!open || !item?.workspace_name || !cookie?.trim()) {
+      if (!open || !workspace || !cookie?.trim()) {
         setSprints([]);
         return;
       }
       try {
-        const data = await fetchSprints(cookie, item.workspace_name);
+        const data = await fetchSprints(cookie, workspace);
         if (cancelled || !data.success) return;
         const list = [...(data.data || [])].sort((a, b) => {
-          if (a.object_id === item.sprint_id) return -1;
-          if (b.object_id === item.sprint_id) return 1;
+          if (a.object_id === preferredSprint) return -1;
+          if (b.object_id === preferredSprint) return 1;
           return 0;
         });
         setSprints(list);
@@ -43,7 +45,7 @@ export default function EditItemModal({ open, item, cookie, onClose, onSubmit })
     return () => {
       cancelled = true;
     };
-  }, [open, item, cookie]);
+  }, [open, item?.workspace_name, item?.sprint_id, cookie]);
 
   const handleOk = async () => {
     setError('');

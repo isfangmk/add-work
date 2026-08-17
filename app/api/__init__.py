@@ -22,6 +22,7 @@ from app.exceptions import (
 from app.logger import get_logger
 from app.schemas import (
     ApiResponse,
+    CurrentUserRequest,
     FeedbackRequest,
     LLMSummaryRequest,
     SprintListRequest,
@@ -29,7 +30,7 @@ from app.schemas import (
     TaskStatusResponse,
     WorkItemsRequest,
 )
-from app.services import load_calendar_items, run_work_task
+from app.services import load_calendar_items, resolve_current_user, run_work_task
 from app.clients import gitee
 from app.task_store import (
     append_log,
@@ -98,10 +99,28 @@ async def get_sprint_list(request: SprintListRequest) -> JSONResponse:
         raise HTTPException(status_code=500, detail=f"获取迭代列表失败：{exc}") from exc
 
 
+@router.post("/get-current-user", response_model=ApiResponse)
+async def get_current_user(request: CurrentUserRequest) -> JSONResponse:
+    try:
+        username, git_email = await resolve_current_user(request.cookie)
+        if not username:
+            raise AuthAppError("检查复制Cookie是否完整或已过期")
+        return JSONResponse(
+            ApiResponse.ok(
+                data={"username": username, "gitEmail": git_email or ""}
+            ).model_dump()
+        )
+    except AuthAppError:
+        raise
+    except Exception as exc:
+        logger.error("获取当前用户失败：%s", exc)
+        raise HTTPException(status_code=500, detail=f"获取当前用户失败：{exc}") from exc
+
+
 @router.post("/get-work-items-by-range", response_model=ApiResponse)
 async def get_work_items_by_range(request: WorkItemsRequest) -> JSONResponse:
     try:
-        results, username, git_email = await load_calendar_items(
+        results, username, _git_email = await load_calendar_items(
             settings.build_headers(request.cookie),
             request.startDate,
             request.endDate,
@@ -118,10 +137,7 @@ async def get_work_items_by_range(request: WorkItemsRequest) -> JSONResponse:
             for item in batch:
                 week_items[item["date"]].append(item)
 
-        payload = ApiResponse.ok(data=dict(week_items)).model_dump()
-        payload["username"] = username
-        payload["gitEmail"] = git_email
-        return JSONResponse(payload)
+        return JSONResponse(ApiResponse.ok(data=dict(week_items)).model_dump())
     except AuthAppError:
         raise
     except Exception as exc:
