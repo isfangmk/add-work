@@ -8,10 +8,9 @@ from typing import Any, Dict, List, Optional, Tuple
 from app.clients import gitee
 from app.config import settings
 from app.db import (
-    get_cookie_record,
     get_workspace_configs,
-    save_cookie_record,
     save_task_record,
+    upsert_cookie_record,
 )
 from app.keepalive import is_active, start as start_keepalive
 from app.logger import get_logger
@@ -20,19 +19,20 @@ from app.task_store import append_log, finish_task
 logger = get_logger(__name__)
 
 
-async def resolve_current_user(cookie: str) -> Tuple[Optional[str], Optional[str]]:
-    """根据 Cookie 解析当前用户，并按需启动保活。"""
+async def resolve_current_user(
+    cookie: str,
+) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    """根据 Cookie 解析当前用户，写入记录并按需启动保活。"""
     headers = settings.build_headers(cookie)
-    username, git_email = await gitee.fetch_current_user(headers)
+    username, git_email, real_name = await gitee.fetch_current_user(headers)
     if not username:
-        return None, None
+        return None, None, None
 
     cookie_str = headers["cookie"]
-    if not get_cookie_record(username):
-        save_cookie_record(username, cookie_str)
+    upsert_cookie_record(username, cookie_str, real_name)
     if not is_active(username):
         await start_keepalive(username, cookie_str)
-    return username, git_email
+    return username, git_email, real_name or ""
 
 
 async def load_calendar_items(

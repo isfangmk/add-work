@@ -49,6 +49,8 @@ class Settings:
     sqlite_web_password: str = field(
         default_factory=lambda: os.getenv("SQLITE_WEB_PASSWORD", "")
     )
+    mcp_token: str = field(default_factory=lambda: os.getenv("MCP_TOKEN", ""))
+    add_work_url: str = field(default_factory=lambda: os.getenv("ADD_WORK_URL", ""))
 
     def build_headers(self, cookie: Optional[str] = None) -> Dict[str, str]:
         headers = {

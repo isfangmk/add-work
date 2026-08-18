@@ -22,7 +22,7 @@ workspace_iql_cache: Dict[str, str] = {}
 
 async def fetch_current_user(
     headers: Dict[str, str],
-) -> Tuple[Optional[str], Optional[str]]:
+) -> Tuple[Optional[str], Optional[str], Optional[str]]:
     resp = None
     try:
         resp = await http_client.get(
@@ -31,11 +31,15 @@ async def fetch_current_user(
         resp.raise_for_status()
         payload = resp.json().get("payload")
         if not payload:
-            return None, None
-        return payload.get("displayName"), payload.get("gitEmail")
+            return None, None, None
+        return (
+            payload.get("displayName"),
+            payload.get("gitEmail"),
+            payload.get("enterpriseCard"),
+        )
     except Exception as exc:
         logger.error(format_http_error("获取用户信息失败", exc, resp))
-        return None, None
+        return None, None, None
 
 
 async def search_work_items(

@@ -102,7 +102,7 @@ async def get_sprint_list(request: SprintListRequest) -> JSONResponse:
 @router.post("/get-current-user", response_model=ApiResponse)
 async def get_current_user(request: CurrentUserRequest) -> JSONResponse:
     try:
-        username, git_email = await resolve_current_user(request.cookie)
+        username, git_email, _real_name = await resolve_current_user(request.cookie)
         if not username:
             raise AuthAppError("检查复制Cookie是否完整或已过期")
         return JSONResponse(

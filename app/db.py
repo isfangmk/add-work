@@ -94,6 +94,7 @@ def init_db() -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT NOT NULL,
                 cookie TEXT NOT NULL,
+                real_name TEXT,
                 created_at TIMESTAMP NOT NULL
             );
             CREATE TABLE IF NOT EXISTS workspace_configs (
@@ -118,6 +119,13 @@ def init_db() -> None:
             logger.info("初始化默认 workspace 配置")
             for row in _DEFAULT_WORKSPACES:
                 save_workspace_config(*row)
+        cols = {
+            row[1]
+            for row in cur.execute("PRAGMA table_info(cookie_records)").fetchall()
+        }
+        if "real_name" not in cols:
+            logger.info("cookie_records 增加 real_name 列")
+            cur.execute("ALTER TABLE cookie_records ADD COLUMN real_name TEXT")
         conn.commit()
 
 
@@ -125,7 +133,8 @@ def get_cookie_record(username: str) -> Optional[Tuple[str, str]]:
     try:
         with _connect() as conn:
             return conn.execute(
-                "SELECT username, cookie FROM cookie_records WHERE username = ?",
+                "SELECT username, cookie FROM cookie_records WHERE username = ? "
+                "ORDER BY id DESC LIMIT 1",
                 (username,),
             ).fetchone()
     except Exception as exc:
@@ -133,16 +142,73 @@ def get_cookie_record(username: str) -> Optional[Tuple[str, str]]:
         return None
 
 
-def save_cookie_record(username: str, cookie: str) -> None:
+def get_cookie_record_by_real_name(real_name: str) -> Optional[Tuple[str, str]]:
+    name = (real_name or "").strip()
+    if not name:
+        return None
     try:
         with _connect() as conn:
-            conn.execute(
-                "INSERT INTO cookie_records (username, cookie, created_at) VALUES (?, ?, ?)",
-                (username, cookie, _now()),
-            )
+            return conn.execute(
+                "SELECT username, cookie FROM cookie_records WHERE real_name = ? "
+                "ORDER BY id DESC LIMIT 1",
+                (name,),
+            ).fetchone()
+    except Exception as exc:
+        logger.error("按中文名获取Cookie记录失败：%s", exc)
+        return None
+
+
+def upsert_cookie_record(
+    username: str, cookie: str, real_name: Optional[str] = None
+) -> None:
+    try:
+        with _connect() as conn:
+            row = conn.execute(
+                "SELECT id FROM cookie_records WHERE username = ? ORDER BY id DESC LIMIT 1",
+                (username,),
+            ).fetchone()
+            if row:
+                conn.execute(
+                    """
+                    UPDATE cookie_records
+                    SET cookie = ?, real_name = CASE
+                        WHEN ? != '' THEN ? ELSE real_name END
+                    WHERE id = ?
+                    """,
+                    (cookie, real_name or "", real_name or "", row[0]),
+                )
+            else:
+                conn.execute(
+                    """
+                    INSERT INTO cookie_records (username, cookie, real_name, created_at)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (username, cookie, real_name or "", _now()),
+                )
             conn.commit()
     except Exception as exc:
         logger.error("保存Cookie记录失败：%s", exc)
+
+
+def save_cookie_record(
+    username: str, cookie: str, real_name: Optional[str] = None
+) -> None:
+    upsert_cookie_record(username, cookie, real_name)
+
+
+def update_cookie_real_name(username: str, real_name: str) -> None:
+    name = (real_name or "").strip()
+    if not name:
+        return
+    try:
+        with _connect() as conn:
+            conn.execute(
+                "UPDATE cookie_records SET real_name = ? WHERE username = ?",
+                (name, username),
+            )
+            conn.commit()
+    except Exception as exc:
+        logger.error("更新Cookie中文名失败：%s", exc)
 
 
 def get_all_cookie_records() -> List[Tuple[str, str]]:

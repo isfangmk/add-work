@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from app.config import settings
-from app.db import delete_cookie_record, get_all_cookie_records
+from app.db import delete_cookie_record, get_all_cookie_records, update_cookie_real_name
 from app.http_client import http_client
 from app.logger import get_logger
 
@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 _active: Dict[str, Dict[str, Any]] = {}
 
 
-async def _probe(cookie_str: str, *, in_loop: bool = False) -> bool:
+async def _probe(cookie_str: str, *, in_loop: bool = False) -> Optional[str]:
     retries = 3 if in_loop else 1
     for attempt in range(retries):
         try:
@@ -32,23 +32,26 @@ async def _probe(cookie_str: str, *, in_loop: bool = False) -> bool:
                 if attempt < retries - 1:
                     await asyncio.sleep(600)
                     continue
-                return False
-            logger.info("保活成功：%s", payload["enterpriseCard"])
-            return True
+                return None
+            real_name = str(payload["enterpriseCard"] or "").strip()
+            logger.info("保活成功：%s", real_name)
+            return real_name
         except Exception as exc:
             logger.error("保活请求失败：%s (尝试 %s/%s)", exc, attempt + 1, retries)
             if attempt < retries - 1:
                 await asyncio.sleep(10)
                 continue
-            return False
-    return False
+            return None
+    return None
 
 
 async def _loop(username: str, cookie_str: str) -> None:
     while True:
         try:
             logger.info("[%s] 心跳...", username)
-            if await _probe(cookie_str, in_loop=True):
+            real_name = await _probe(cookie_str, in_loop=True)
+            if real_name is not None:
+                update_cookie_real_name(username, real_name)
                 logger.info("[%s] cookie 已续期", username)
             else:
                 logger.error("[%s] 心跳失败，停止保活", username)
@@ -78,10 +81,12 @@ async def start(username: str, cookie_str: str) -> bool:
         logger.warning("[%s] 已在保活中", username)
         return True
 
-    if not await _probe(cookie_str):
+    real_name = await _probe(cookie_str)
+    if real_name is None:
         logger.error("[%s] 初始验证失败", username)
         delete_cookie_record(username)
         return False
+    update_cookie_real_name(username, real_name)
 
     task = asyncio.create_task(_loop(username, cookie_str))
     _active[username] = {"task": task, "cookie_str": cookie_str}

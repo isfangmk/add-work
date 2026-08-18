@@ -121,6 +121,7 @@ docker rm add_work
 - 📊 实时任务状态监控
 - 🎨 现代化的 React 前端界面
 - 🐳 支持 Docker 容器化部署
+- 🔌 MCP Server（FastMCP），可供 Cursor 等客户端调用工时能力
 
 ## 项目结构
 
@@ -129,7 +130,8 @@ add-work/
 ├── app/                 # 后端应用目录
 │   ├── config.py       # 配置文件
 │   ├── db.py           # 数据库操作
-│   ├── routes.py       # API 路由
+│   ├── mcp.py          # FastMCP 工具
+│   ├── api/            # HTTP API
 │   ├── services.py     # 业务逻辑
 │   └── ...
 ├── frontend/           # 前端应用
@@ -146,6 +148,17 @@ add-work/
 
 - 后端服务端口: `5000`
 - 前端开发端口: `3000`
+- MCP（Streamable HTTP）: `http://127.0.0.1:5000/add-work/mcp`
+
+## MCP
+
+与网页共用同一进程。连接用自定义 Header `X-MCP-Token`（与环境变量 `MCP_TOKEN` 一致）。
+
+先调用 `whoami(real_name)`（企业微信中文名）。没有登录记录时引导用户打开 https://gitee.ibr.net.cn/ ，把 PRE-GW-SESSION 通过 `whoami` 的 `cookie` 再提交一次。成功后其他工具的 `account` 使用返回的 Gitee 用户名。
+
+企业微信插件请求头示例：Key `X-MCP-Token`，Value 为 `MCP_TOKEN`。也可使用授权方式 Service token（Header 里的 Bearer）。
+
+标准用法：`whoami` → `get_calendar` 拿 `recommended_source` → 可选 `list_sprints` / `suggest_titles` → `create_from_source`；改已有事项用 `update_item`。
 
 ## 许可证
 

@@ -24,6 +24,7 @@ from app.exceptions import AppError  # noqa: E402
 from app.http_client import close_http_client  # noqa: E402
 from app.keepalive import restore_on_startup  # noqa: E402
 from app.logger import get_logger  # noqa: E402
+from app.mcp import mcp_http_app, mcp_token_from_headers  # noqa: E402
 from app.schemas import ApiResponse  # noqa: E402
 from sqlite_web.sqlite_web import app as sqlite_web_app  # noqa: E402
 from sqlite_web.sqlite_web import initialize_app as init_sqlite_web  # noqa: E402
@@ -40,11 +41,18 @@ PREFIX = settings.path_prefix
 
 
 @asynccontextmanager
-async def lifespan(_app: FastAPI):
+async def app_lifespan(_app: FastAPI):
     init_db()
     asyncio.create_task(restore_on_startup())
     yield
     await close_http_client()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with app_lifespan(app):
+        async with mcp_http_app.lifespan(app):
+            yield
 
 
 app = FastAPI(title="添加工时工具", version="2.0.0", lifespan=lifespan)
@@ -69,6 +77,35 @@ if _sqlite_password:
 else:
     logger.warning("SQLITE_WEB_PASSWORD 未配置，/sqlite 可匿名访问")
 app.mount(f"{PREFIX}/sqlite", WSGIMiddleware(sqlite_web_app))
+app.mount(f"{PREFIX}/mcp", mcp_http_app)
+
+_MCP_PATH = f"{PREFIX}/mcp"
+
+
+@app.middleware("http")
+async def mcp_http_middleware(request: Request, call_next):
+    # MCP Streamable HTTP 客户端通常不跟随 307，把无尾斜杠改写到挂载路径内部。
+    path = request.scope.get("path", "")
+    if path == _MCP_PATH:
+        request.scope["path"] = _MCP_PATH + "/"
+        raw = request.scope.get("raw_path")
+        if isinstance(raw, (bytes, bytearray)):
+            request.scope["raw_path"] = raw.rstrip(b"/") + b"/"
+
+    if not request.scope.get("path", "").startswith(_MCP_PATH):
+        return await call_next(request)
+    expected = settings.mcp_token
+    if not expected:
+        return JSONResponse(
+            {"error": "unauthorized", "msg": "服务未配置 MCP_TOKEN"},
+            status_code=401,
+        )
+    if mcp_token_from_headers(dict(request.headers)) != expected:
+        return JSONResponse(
+            {"error": "unauthorized", "msg": "缺少或错误的 X-MCP-Token"},
+            status_code=401,
+        )
+    return await call_next(request)
 
 
 @app.get("/")
