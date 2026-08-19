@@ -39,13 +39,16 @@ mcp = FastMCP(
         "连接 Header 使用 X-MCP-Token 认证。"
         "企业微信会注入用户中文名。先调用 whoami(real_name=中文名)。"
         "若尚未登录：引导用户打开 https://gitee.ibr.net.cn/ 登录，"
-        "把 PRE-GW-SESSION Cookie 再通过 whoami 的 cookie 参数提交。"
+        "把 PRE-GW-SESSION Cookie 再通过 whoami 的 cookie 参数提交"
+        "（值类似 17eca8db2ef64b54a9f1b753919fb1d6）。"
         "whoami 成功后得到 Gitee 用户名，后续 get_calendar / list_sprints / "
         "suggest_titles / create_from_source / update_item 的 account 使用该 Gitee 用户名。"
         "禁止编造账号。"
         "流程：whoami → get_calendar 看周历并使用 recommended_source；"
         "需要改迭代时 list_sprints；可选 suggest_titles；"
         "create_from_source 克隆源事项写入新工时；改已有事项用 update_item。"
+        "用户粘贴企业微信「智能总结」生成的每日工作事项时："
+        "提炼成工时事项名称，精简、客观，一般不超过 50 个字，不要整段粘贴原文。"
         "不要自己编造 object_id，必须从日历拷贝。"
     ),
 )
@@ -116,8 +119,9 @@ def mcp_token_from_headers(headers: Dict[str, str]) -> str:
 def _gitee_cookie_guide(reason: str) -> str:
     return (
         f"{reason}请先打开 {_GITEE_LOGIN_URL} 登录，"
-        "然后将 PRE-GW-SESSION 的 Cookie 值再调用 whoami"
-        "（参数 real_name 为中文名，cookie 为该 Cookie 值）。"
+        "然后将 PRE-GW-SESSION 的 Cookie 值再调用 whoami。"
+        "Cookie 值类似 17eca8db2ef64b54a9f1b753919fb1d6"
+        "（参数 real_name 为中文名，cookie 为该值）。"
     )
 
 
@@ -231,7 +235,12 @@ async def whoami(
     real_name: Annotated[str, Field(description="企业微信注入的中文姓名")],
     cookie: Annotated[
         Optional[str],
-        Field(description="可选。Gitee 的 PRE-GW-SESSION Cookie 值"),
+        Field(
+            description=(
+                "可选。Gitee 的 PRE-GW-SESSION Cookie 值，"
+                "类似 17eca8db2ef64b54a9f1b753919fb1d6"
+            )
+        ),
     ] = None,
 ) -> Dict[str, Any]:
     """用中文名识别用户。无登录记录时引导去 Gitee 登录并提交 Cookie，校验成功后保活并返回 Gitee 用户名、中文名、邮箱。"""
@@ -374,7 +383,12 @@ async def create_from_source(
     ],
     names: Annotated[
         List[str],
-        Field(description='待创建的事项名称列表，例如 ["接口联调", "修缺陷"]'),
+        Field(
+            description=(
+                '待创建的事项名称列表，例如 ["接口联调", "修缺陷"]。'
+                "由智能总结改写时须精简，一般不超过 50 个字，不要整段粘贴原文"
+            )
+        ),
     ],
     hours: Annotated[
         List[float],
@@ -428,7 +442,7 @@ async def update_item(
     account: Annotated[str, Field(description=_ACCOUNT_DESC)],
     object_id: Annotated[str, Field(description="要更新的事项 ID，从 get_calendar 的 days 里拷贝")],
     workspace_name: Annotated[str, Field(description="该事项所在空间，从 days 里拷贝")],
-    name: Annotated[str, Field(description="事项名称")],
+    name: Annotated[str, Field(description="事项名称。精简，一般不超过 50 个字")],
     hours: Annotated[float, Field(description="工时（小时），须大于 0")],
     date: Annotated[str, Field(description="日期 YYYY-MM-DD")],
     sprint_id: Annotated[str, Field(description="迭代 ID")],
