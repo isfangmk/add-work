@@ -269,15 +269,20 @@ export function useWorkHoursApp() {
   ]);
 
   const submitUpdate = useCallback(
-    async ({ item, name, sprintId, time, date }) => {
+    async ({ item, name, workspaceName, sprintId, time, date }) => {
       if (!item || !username || !cookie) return false;
+      const workspace = workspaceName || item.workspace_name;
+      if (!workspace) {
+        message.warning('请选择工作空间');
+        return false;
+      }
       setTaskRunning(true);
       setTaskLog([{ message: '📅 更新任务已提交，正在执行...', type: 'info' }]);
       try {
         const data = await startTask({
           username,
           cookie,
-          workspace_name: item.workspace_name,
+          workspace_name: workspace,
           is_update: true,
           sourceObjectId: item.object_id,
           names: [name.trim()],
@@ -298,7 +303,7 @@ export function useWorkHoursApp() {
         return false;
       }
     },
-    [username, cookie, beginPoll, refreshAfterTask]
+    [username, cookie, message, beginPoll, refreshAfterTask]
   );
 
   const aiWrite = useCallback(async () => {

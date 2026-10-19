@@ -1,18 +1,38 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, DatePicker, Form, Input, InputNumber, Modal, Select } from 'antd';
 import dayjs from 'dayjs';
-import { fetchSprints } from '../api';
+import { fetchSprints, fetchWorkspaces } from '../api';
 
 export default function EditItemModal({ open, item, cookie, onClose, onSubmit }) {
   const [form] = Form.useForm();
+  const [workspaces, setWorkspaces] = useState([]);
   const [sprints, setSprints] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const workspaceName = Form.useWatch('workspace_name', form);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await fetchWorkspaces();
+        if (cancelled || !data.success) return;
+        setWorkspaces(data.data || []);
+      } catch {
+        if (!cancelled) setWorkspaces([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!open || !item) return;
     form.setFieldsValue({
       name: item.name || '',
+      workspace_name: item.workspace_name || undefined,
       sprintId: item.sprint_id,
       time: item.time != null ? Number(item.time) : undefined,
       date: item.date ? dayjs(item.date) : null
@@ -22,7 +42,7 @@ export default function EditItemModal({ open, item, cookie, onClose, onSubmit })
 
   useEffect(() => {
     let cancelled = false;
-    const workspace = item?.workspace_name;
+    const workspace = (workspaceName || item?.workspace_name || '').trim();
     const preferredSprint = item?.sprint_id;
     (async () => {
       if (!open || !workspace || !cookie?.trim()) {
@@ -32,12 +52,20 @@ export default function EditItemModal({ open, item, cookie, onClose, onSubmit })
       try {
         const data = await fetchSprints(cookie, workspace);
         if (cancelled || !data.success) return;
-        const list = [...(data.data || [])].sort((a, b) => {
-          if (a.object_id === preferredSprint) return -1;
-          if (b.object_id === preferredSprint) return 1;
-          return 0;
-        });
+        const list = [...(data.data || [])];
+        if (workspace === item?.workspace_name && preferredSprint) {
+          list.sort((a, b) => {
+            if (a.object_id === preferredSprint) return -1;
+            if (b.object_id === preferredSprint) return 1;
+            return 0;
+          });
+        }
         setSprints(list);
+        const ids = new Set(list.map((s) => s.object_id));
+        const current = form.getFieldValue('sprintId');
+        if (current && !ids.has(current)) {
+          form.setFieldValue('sprintId', undefined);
+        }
       } catch {
         if (!cancelled) setSprints([]);
       }
@@ -45,7 +73,14 @@ export default function EditItemModal({ open, item, cookie, onClose, onSubmit })
     return () => {
       cancelled = true;
     };
-  }, [open, item?.workspace_name, item?.sprint_id, cookie]);
+  }, [open, workspaceName, item?.workspace_name, item?.sprint_id, cookie, form, item]);
+
+  const handleWorkspaceChange = (value) => {
+    form.setFieldsValue({
+      workspace_name: value,
+      sprintId: undefined
+    });
+  };
 
   const handleOk = async () => {
     setError('');
@@ -55,6 +90,7 @@ export default function EditItemModal({ open, item, cookie, onClose, onSubmit })
       const ok = await onSubmit({
         item,
         name: values.name.trim(),
+        workspaceName: values.workspace_name || item.workspace_name,
         sprintId: values.sprintId || item.sprint_id,
         time: values.time,
         date: values.date.format('YYYY-MM-DD')
@@ -87,9 +123,25 @@ export default function EditItemModal({ open, item, cookie, onClose, onSubmit })
         >
           <Input />
         </Form.Item>
+        <Form.Item
+          label="工作空间"
+          name="workspace_name"
+          rules={[{ required: true, message: '请选择工作空间' }]}
+        >
+          <Select
+            placeholder="请选择工作空间"
+            options={workspaces.map((ws) => ({
+              value: ws.workspace_name,
+              label: ws.workspace_name
+            }))}
+            onChange={handleWorkspaceChange}
+          />
+        </Form.Item>
         <Form.Item label="迭代" name="sprintId">
           <Select
             allowClear
+            placeholder={workspaceName ? '请选择迭代' : '请先选择工作空间'}
+            disabled={!workspaceName}
             options={sprints.map((s) => ({ value: s.object_id, label: s.name }))}
           />
         </Form.Item>

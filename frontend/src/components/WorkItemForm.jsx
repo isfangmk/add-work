@@ -32,14 +32,15 @@ export default function WorkItemForm({
   const defaultWorkspace = sourceItem?.workspace_name || '';
   const preferredSprint = sourceItem?.sprint_id || '';
 
-  const usedWorkspaces = useMemo(() => {
+  // 稳定字符串，避免改名称时重复请求
+  const usedWorkspaceKey = useMemo(() => {
     const names = new Set();
     workItems.forEach((item) => {
-      const name = item.workspace_name || defaultWorkspace;
+      const name = (item.workspace_name || defaultWorkspace || '').trim();
       if (name) names.add(name);
     });
     if (defaultWorkspace) names.add(defaultWorkspace);
-    return Array.from(names);
+    return Array.from(names).sort().join('\n');
   }, [workItems, defaultWorkspace]);
 
   useEffect(() => {
@@ -61,38 +62,51 @@ export default function WorkItemForm({
 
   useEffect(() => {
     let cancelled = false;
-    if (!cookie?.trim() || !usedWorkspaces.length) {
+    const used = usedWorkspaceKey ? usedWorkspaceKey.split('\n') : [];
+    if (!cookie?.trim() || !used.length) {
       setSprintsByWs({});
       return undefined;
     }
+
     (async () => {
-      const next = {};
+      const fetched = {};
       await Promise.all(
-        usedWorkspaces.map(async (workspace) => {
+        used.map(async (workspace) => {
           try {
             const data = await fetchSprints(cookie, workspace);
             if (!data.success) {
-              next[workspace] = [];
+              fetched[workspace] = [];
               return;
             }
-            const list = [...(data.data || [])].sort((a, b) => {
-              if (a.object_id === preferredSprint) return -1;
-              if (b.object_id === preferredSprint) return 1;
-              return 0;
-            });
-            next[workspace] = list;
+            const list = [...(data.data || [])];
+            if (workspace === defaultWorkspace && preferredSprint) {
+              list.sort((a, b) => {
+                if (a.object_id === preferredSprint) return -1;
+                if (b.object_id === preferredSprint) return 1;
+                return 0;
+              });
+            }
+            fetched[workspace] = list;
           } catch (err) {
             console.error(err);
-            next[workspace] = [];
+            fetched[workspace] = [];
           }
         })
       );
-      if (!cancelled) setSprintsByWs(next);
+      if (cancelled) return;
+      setSprintsByWs((prev) => {
+        const next = { ...prev };
+        used.forEach((ws) => {
+          next[ws] = fetched[ws] || [];
+        });
+        return next;
+      });
     })();
+
     return () => {
       cancelled = true;
     };
-  }, [usedWorkspaces, preferredSprint, cookie]);
+  }, [usedWorkspaceKey, cookie, defaultWorkspace, preferredSprint]);
 
   const handleWorkspaceChange = (index, workspace) => {
     onChange(index, {
@@ -124,6 +138,20 @@ export default function WorkItemForm({
         {workItems.map((item, index) => {
           const workspace = item.workspace_name || defaultWorkspace || undefined;
           const sprints = (workspace && sprintsByWs[workspace]) || [];
+          const sprintIds = new Set(sprints.map((s) => s.object_id));
+          let sprintValue = item.sprint_id || '';
+          if (
+            !sprintValue &&
+            workspace === defaultWorkspace &&
+            preferredSprint &&
+            sprintIds.has(preferredSprint)
+          ) {
+            sprintValue = preferredSprint;
+          }
+          if (sprintValue && !sprintIds.has(sprintValue)) {
+            sprintValue = '';
+          }
+
           return (
             <div key={index} className="work-item-row">
               <Input
@@ -144,9 +172,10 @@ export default function WorkItemForm({
               <Select
                 size="large"
                 className="work-item-sprint"
-                placeholder="请选择迭代"
+                placeholder={workspace ? '请选择迭代' : '请先选择工作空间'}
                 allowClear
-                value={item.sprint_id || (workspace === defaultWorkspace ? preferredSprint : undefined) || undefined}
+                disabled={!workspace}
+                value={sprintValue || undefined}
                 options={sprints.map((s) => ({ value: s.object_id, label: s.name }))}
                 onChange={(v) => onChange(index, 'sprint_id', v || '')}
               />
