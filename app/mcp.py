@@ -41,12 +41,14 @@ mcp = FastMCP(
         "若尚未登录：引导用户打开 https://gitee.ibr.net.cn/ 登录，"
         "把 PRE-GW-SESSION Cookie 再通过 whoami 的 cookie 参数提交"
         "（值类似 17eca8db2ef64b54a9f1b753919fb1d6）。"
-        "whoami 成功后得到 Gitee 用户名，后续 get_calendar / list_sprints / "
-        "suggest_titles / create_from_source / update_item 的 account 使用该 Gitee 用户名。"
-        "禁止编造账号。"
+        "whoami 成功后得到 Gitee 用户名，后续 get_calendar / list_workspaces / "
+        "list_sprints / suggest_titles / create_from_source / update_item 的 account "
+        "使用该 Gitee 用户名。禁止编造账号。"
         "流程：whoami → get_calendar 看周历并使用 recommended_source；"
-        "需要改迭代时 list_sprints；可选 suggest_titles；"
-        "create_from_source 克隆源事项写入新工时；改已有事项用 update_item。"
+        "需要换工作空间时 list_workspaces，默认用源事项的 workspace_name；"
+        "换空间或改迭代时 list_sprints；可选 suggest_titles；"
+        "create_from_source 克隆源事项写入新工时（可按事项指定不同工作空间）；"
+        "改已有事项用 update_item。"
         "用户粘贴企业微信「智能总结」生成的每日工作事项时："
         "提炼成工时事项名称，精简、客观，一般不超过 50 个字，不要整段粘贴原文。"
         "不要自己编造 object_id，必须从日历拷贝。"
@@ -197,7 +199,7 @@ async def _run_task(
     username: str,
     cookie: str,
     object_id: str,
-    workspace_name: str,
+    workspace_names: List[str],
     names: List[str],
     sprint_ids: List[str],
     times: List[float],
@@ -215,7 +217,7 @@ async def _run_task(
         sprint_ids,
         times,
         dates,
-        [workspace_name] * len(names),
+        workspace_names,
         task_id,
         is_update=is_update,
     )
@@ -320,11 +322,34 @@ async def get_calendar(
 
 
 @mcp.tool
+async def list_workspaces() -> Dict[str, Any]:
+    """列出可选工作空间名称（与网页下拉一致）。create_from_source 默认用源事项空间，换空间时从本列表选。"""
+    configs = get_workspace_configs()
+    data = [
+        {
+            "workspace_name": name,
+            "workspace_id": cfg["workspace_id"],
+            "workspace_key": cfg["workspace_key"],
+        }
+        for name, cfg in configs.items()
+    ]
+    return _ok(data)
+
+
+@mcp.tool
 async def list_sprints(
     account: Annotated[str, Field(description=_ACCOUNT_DESC)],
-    workspace_name: str,
+    workspace_name: Annotated[
+        str,
+        Field(
+            description=(
+                "工作空间名称。默认用源事项的 workspace_name；"
+                "换空间时从 list_workspaces 或日历事项拷贝"
+            )
+        ),
+    ],
 ) -> Dict[str, Any]:
-    """列出源事项所在空间的未完成迭代。workspace_name 必须来自源事项。"""
+    """列出指定工作空间的未完成迭代。"""
     workspace = get_workspace_configs().get(workspace_name)
     if not workspace:
         return _fail(f"工作空间 '{workspace_name}' 不存在")
@@ -379,7 +404,12 @@ async def create_from_source(
     ],
     workspace_name: Annotated[
         str,
-        Field(description="源事项所在空间。从 recommended_source.workspace_name 拷贝"),
+        Field(
+            description=(
+                "默认工作空间。通常从 recommended_source.workspace_name 拷贝；"
+                "也可从 list_workspaces 选择。各事项未单独指定时都用此值"
+            )
+        ),
     ],
     names: Annotated[
         List[str],
@@ -402,16 +432,38 @@ async def create_from_source(
         List[str],
         Field(description="各事项迭代 ID，与 names 一一对应。从 recommended_source.sprint_id 或 list_sprints 拷贝"),
     ],
+    workspace_names: Annotated[
+        Optional[List[str]],
+        Field(
+            description=(
+                "可选。各事项工作空间，与 names 一一对应。"
+                "不传则全部使用 workspace_name；换空间时从 list_workspaces 拷贝"
+            )
+        ),
+    ] = None,
 ) -> Dict[str, Any]:
-    """克隆源事项并创建新工时。names、hours、dates、sprint_ids 长度必须相同。"""
-    if workspace_name not in get_workspace_configs():
-        return _fail(f"工作空间 '{workspace_name}' 不存在")
+    """克隆源事项并创建新工时。names、hours、dates、sprint_ids 长度必须相同；可选按事项指定工作空间。"""
     if not names or not hours or not dates or not sprint_ids:
         return _fail("names、hours、dates、sprint_ids 不能为空")
-    if len({len(names), len(hours), len(dates), len(sprint_ids)}) != 1:
-        return _fail("names、hours、dates、sprint_ids 长度必须相同")
+    lengths = {len(names), len(hours), len(dates), len(sprint_ids)}
+    if workspace_names is not None:
+        lengths.add(len(workspace_names))
+    if len(lengths) != 1:
+        return _fail("names、hours、dates、sprint_ids（及 workspace_names）长度必须相同")
     if any(h <= 0 for h in hours):
         return _fail("工时须为大于 0 的数字")
+
+    default_ws = (workspace_name or "").strip()
+    resolved_workspaces = [
+        (w or "").strip() or default_ws
+        for w in (workspace_names if workspace_names is not None else [default_ws] * len(names))
+    ]
+    configs = get_workspace_configs()
+    for ws in resolved_workspaces:
+        if not ws:
+            return _fail("缺少工作空间：请传 workspace_name 或 workspace_names")
+        if ws not in configs:
+            return _fail(f"工作空间 '{ws}' 不存在，请先调用 list_workspaces")
 
     clean_names = [n.strip() for n in names]
     clean_dates = [d.strip() for d in dates]
@@ -428,7 +480,7 @@ async def create_from_source(
         username,
         cookie,
         source_object_id.strip(),
-        workspace_name,
+        resolved_workspaces,
         clean_names,
         resolved_sprints,
         [float(h) for h in hours],
@@ -441,15 +493,19 @@ async def create_from_source(
 async def update_item(
     account: Annotated[str, Field(description=_ACCOUNT_DESC)],
     object_id: Annotated[str, Field(description="要更新的事项 ID，从 get_calendar 的 days 里拷贝")],
-    workspace_name: Annotated[str, Field(description="该事项所在空间，从 days 里拷贝")],
+    workspace_name: Annotated[
+        str,
+        Field(description="该事项所在空间，从 days 里拷贝；一般不要改到其他空间"),
+    ],
     name: Annotated[str, Field(description="事项名称。精简，一般不超过 50 个字")],
     hours: Annotated[float, Field(description="工时（小时），须大于 0")],
     date: Annotated[str, Field(description="日期 YYYY-MM-DD")],
     sprint_id: Annotated[str, Field(description="迭代 ID")],
 ) -> Dict[str, Any]:
     """更新已有工时事项，不克隆。"""
-    if workspace_name not in get_workspace_configs():
-        return _fail(f"工作空间 '{workspace_name}' 不存在")
+    ws = (workspace_name or "").strip()
+    if ws not in get_workspace_configs():
+        return _fail(f"工作空间 '{ws}' 不存在，请先调用 list_workspaces")
     if hours <= 0:
         return _fail("工时须为大于 0 的数字")
     if not (object_id and name.strip() and date.strip()):
@@ -464,7 +520,7 @@ async def update_item(
         username,
         cookie,
         object_id,
-        workspace_name,
+        [ws],
         [name.strip()],
         [sprint_id.strip()],
         [float(hours)],

@@ -158,7 +158,7 @@ add-work/
 
 企业微信插件请求头示例：Key `X-MCP-Token`，Value 为 `MCP_TOKEN`。也可使用授权方式 Service token（Header 里的 Bearer）。
 
-标准用法：`whoami` → `get_calendar` 拿 `recommended_source` → 可选 `list_sprints` / `suggest_titles` → `create_from_source`；改已有事项用 `update_item`。
+标准用法：`whoami` → `get_calendar` 拿 `recommended_source` → 可选 `list_workspaces` / `list_sprints` / `suggest_titles` → `create_from_source`（默认源事项工作空间，可用 `workspace_names` 按事项指定）；改已有事项用 `update_item`。
 
 ## 许可证
 
