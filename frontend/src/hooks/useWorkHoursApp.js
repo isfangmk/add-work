@@ -16,7 +16,7 @@ import {
   saveCookie
 } from '../utils/storage';
 
-const EMPTY_ITEM = { name: '', time: '', date: '', sprint_id: '' };
+const EMPTY_ITEM = { name: '', time: '', date: '', sprint_id: '', workspace_name: '' };
 
 function pickLatestSourceItem(data) {
   if (!hasValidDays(data)) return null;
@@ -217,6 +217,12 @@ export function useWorkHoursApp() {
     }
 
     const defaultSprint = sourceItem.sprint_id || '';
+    const defaultWorkspace = sourceItem.workspace_name || '';
+    const workspaceNames = valid.map((i) => i.workspace_name || defaultWorkspace);
+    if (workspaceNames.some((name) => !name)) {
+      message.warning('请为每个事项选择工作空间');
+      return false;
+    }
     setTaskRunning(true);
     setTaskLog([{ message: '📅 任务已提交，正在执行...', type: 'info' }]);
 
@@ -225,11 +231,16 @@ export function useWorkHoursApp() {
         username,
         cookie,
         sourceObjectId: sourceItem.object_id,
-        workspace_name: sourceItem.workspace_name,
+        workspace_name: workspaceNames[0],
+        workspaceNames,
         names: valid.map((i) => i.name),
         times: valid.map((i) => parseFloat(Number(i.time).toFixed(1))),
         dates: valid.map((i) => i.date),
-        sprintIds: valid.map((i) => i.sprint_id || defaultSprint)
+        sprintIds: valid.map((i) => {
+          if (i.sprint_id) return i.sprint_id;
+          const ws = i.workspace_name || defaultWorkspace;
+          return ws === defaultWorkspace ? defaultSprint : '';
+        })
       });
       if (!data.success) throw new Error(data.msg || '任务启动失败');
       const taskId = data.data?.taskId;
@@ -317,14 +328,21 @@ export function useWorkHoursApp() {
         message.info(data.msg || '当前日期范围内无生成的事项内容');
         return;
       }
-      setWorkItems(entries.map(([date, name]) => ({ ...EMPTY_ITEM, name, date })));
+      setWorkItems(
+        entries.map(([date, name]) => ({
+          ...EMPTY_ITEM,
+          name,
+          date,
+          workspace_name: sourceItem?.workspace_name || ''
+        }))
+      );
       message.success(`已生成 ${entries.length} 条事项`);
     } catch (err) {
       message.error(`AI生成失败：${err.message}`);
     } finally {
       setAiWriting(false);
     }
-  }, [cookie, username, gitEmail, weekOffset, filledDates, message]);
+  }, [cookie, username, gitEmail, weekOffset, filledDates, sourceItem, message]);
 
   return {
     calendarRef,
@@ -349,7 +367,11 @@ export function useWorkHoursApp() {
     submitCreate,
     submitUpdate,
     aiWrite,
-    addItem: () => setWorkItems((prev) => [...prev, { ...EMPTY_ITEM }]),
+    addItem: () =>
+      setWorkItems((prev) => [
+        ...prev,
+        { ...EMPTY_ITEM, workspace_name: sourceItem?.workspace_name || '' }
+      ]),
     removeItem: (index) => {
       setWorkItems((prev) => {
         if (prev.length <= 1) {
@@ -362,7 +384,8 @@ export function useWorkHoursApp() {
     updateItem: (index, field, value) => {
       setWorkItems((prev) => {
         const next = [...prev];
-        next[index] = { ...next[index], [field]: value };
+        const patch = typeof field === 'object' && field !== null ? field : { [field]: value };
+        next[index] = { ...next[index], ...patch };
         return next;
       });
     }

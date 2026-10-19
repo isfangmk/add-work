@@ -77,7 +77,7 @@ export default function App() {
           <Section
             step={3}
             title="填写事项"
-            description="填写名称、迭代、工时与日期，可使用 AI 帮写草稿"
+            description="填写名称、工作空间、迭代、工时与日期，可使用 AI 帮写草稿"
           >
             <WorkItemForm
               workItems={app.workItems}

@@ -73,37 +73,56 @@ async def run_work_task(
     sprint_ids: List[str],
     times: List[float],
     dates: List[str],
-    workspace_name: str,
+    workspace_names: List[str],
     task_id: str,
     *,
     is_update: bool = False,
 ) -> None:
     """后台克隆或更新事项。"""
+    primary_workspace = workspace_names[0] if workspace_names else ""
     logger.info(
         "任务开始 %s",
-        [username, source_object_id, names, sprint_ids, times, dates, workspace_name, task_id],
+        [
+            username,
+            source_object_id,
+            names,
+            sprint_ids,
+            times,
+            dates,
+            workspace_names,
+            task_id,
+        ],
     )
-    save_task_record(username, source_object_id, names, times, dates, workspace_name)
+    save_task_record(
+        username, source_object_id, names, times, dates, primary_workspace
+    )
     append_log(task_id, f"📅 任务开始执行，共处理{len(names)}个事项")
 
     all_ok = True
-    workspace = get_workspace_configs()[workspace_name]
+    configs = get_workspace_configs()
     jump_url = None
 
     try:
-        if len({len(names), len(times), len(dates)}) != 1:
+        if len({len(names), len(times), len(dates), len(sprint_ids), len(workspace_names)}) != 1:
             raise ValueError(
-                f"名称列表（{len(names)}个）工时（{len(times)}个）"
-                f"日期列表（{len(dates)}个）长度不一致"
+                f"名称（{len(names)}）工时（{len(times)}）日期（{len(dates)}）"
+                f"迭代（{len(sprint_ids)}）工作空间（{len(workspace_names)}）长度不一致"
             )
 
-        for idx, (name, sprint_id, hours, day) in enumerate(
-            zip(names, sprint_ids, times, dates), 1
+        for idx, (name, sprint_id, hours, day, workspace_name) in enumerate(
+            zip(names, sprint_ids, times, dates, workspace_names), 1
         ):
+            workspace = configs.get(workspace_name)
+            if not workspace:
+                append_log(task_id, f"❌ 工作空间 '{workspace_name}' 不存在")
+                all_ok = False
+                continue
+
             append_log(task_id, f"\n=== 处理第{idx}/{len(names)}个事项 ===")
             append_log(
                 task_id,
-                f"名称：{name} | 目标日期：{day} | 工时：{hours}个小时 | 迭代ID：{sprint_id}",
+                f"名称：{name} | 工作空间：{workspace_name} | 目标日期：{day} "
+                f"| 工时：{hours}个小时 | 迭代ID：{sprint_id}",
             )
 
             object_id = (
@@ -136,9 +155,9 @@ async def run_work_task(
                 append_log(task_id, f"❌ 更新事项[{object_id}]失败")
                 all_ok = False
 
-        iql = gitee.workspace_iql_cache.get((username or "") + workspace_name, "")
-        if iql:
-            jump_url = workspace["jump_url"].replace("[iql]", iql)
+            iql = gitee.workspace_iql_cache.get((username or "") + workspace_name, "")
+            if iql:
+                jump_url = workspace["jump_url"].replace("[iql]", iql)
     except Exception as exc:
         append_log(task_id, f"❌ 任务全局错误：{exc}")
         all_ok = False

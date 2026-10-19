@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Button,
   DatePicker,
@@ -11,7 +11,7 @@ import {
 } from 'antd';
 import { MinusOutlined, PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { fetchSprints } from '../api';
+import { fetchSprints, fetchWorkspaces } from '../api';
 
 export default function WorkItemForm({
   workItems,
@@ -26,35 +26,80 @@ export default function WorkItemForm({
   onAiWrite,
   onSubmit
 }) {
-  const [sprints, setSprints] = useState([]);
+  const [workspaces, setWorkspaces] = useState([]);
+  const [sprintsByWs, setSprintsByWs] = useState({});
+
+  const defaultWorkspace = sourceItem?.workspace_name || '';
+  const preferredSprint = sourceItem?.sprint_id || '';
+
+  const usedWorkspaces = useMemo(() => {
+    const names = new Set();
+    workItems.forEach((item) => {
+      const name = item.workspace_name || defaultWorkspace;
+      if (name) names.add(name);
+    });
+    if (defaultWorkspace) names.add(defaultWorkspace);
+    return Array.from(names);
+  }, [workItems, defaultWorkspace]);
 
   useEffect(() => {
     let cancelled = false;
-    const workspace = sourceItem?.workspace_name;
-    const preferredSprint = sourceItem?.sprint_id;
     (async () => {
-      if (!workspace || !cookie?.trim()) {
-        setSprints([]);
-        return;
-      }
       try {
-        const data = await fetchSprints(cookie, workspace);
+        const data = await fetchWorkspaces();
         if (cancelled || !data.success) return;
-        const list = [...(data.data || [])].sort((a, b) => {
-          if (a.object_id === preferredSprint) return -1;
-          if (b.object_id === preferredSprint) return 1;
-          return 0;
-        });
-        setSprints(list);
+        setWorkspaces(data.data || []);
       } catch (err) {
         console.error(err);
-        if (!cancelled) setSprints([]);
+        if (!cancelled) setWorkspaces([]);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [sourceItem?.workspace_name, sourceItem?.sprint_id, cookie]);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!cookie?.trim() || !usedWorkspaces.length) {
+      setSprintsByWs({});
+      return undefined;
+    }
+    (async () => {
+      const next = {};
+      await Promise.all(
+        usedWorkspaces.map(async (workspace) => {
+          try {
+            const data = await fetchSprints(cookie, workspace);
+            if (!data.success) {
+              next[workspace] = [];
+              return;
+            }
+            const list = [...(data.data || [])].sort((a, b) => {
+              if (a.object_id === preferredSprint) return -1;
+              if (b.object_id === preferredSprint) return 1;
+              return 0;
+            });
+            next[workspace] = list;
+          } catch (err) {
+            console.error(err);
+            next[workspace] = [];
+          }
+        })
+      );
+      if (!cancelled) setSprintsByWs(next);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [usedWorkspaces, preferredSprint, cookie]);
+
+  const handleWorkspaceChange = (index, workspace) => {
+    onChange(index, {
+      workspace_name: workspace || '',
+      sprint_id: ''
+    });
+  };
 
   const handleSubmit = () => {
     const invalid = workItems.some((item) => {
@@ -68,55 +113,72 @@ export default function WorkItemForm({
     onSubmit();
   };
 
+  const workspaceOptions = workspaces.map((ws) => ({
+    value: ws.workspace_name,
+    label: ws.workspace_name
+  }));
+
   return (
     <div className="work-item-form">
       <Space direction="vertical" size={12} style={{ width: '100%' }}>
-        {workItems.map((item, index) => (
-          <div key={index} className="work-item-row">
-            <Input
-              size="large"
-              className="work-item-name"
-              placeholder="事项名称"
-              value={item.name}
-              onChange={(e) => onChange(index, 'name', e.target.value)}
-            />
-            <Select
-              size="large"
-              className="work-item-sprint"
-              placeholder="请选择迭代"
-              allowClear
-              value={item.sprint_id || sourceItem?.sprint_id || undefined}
-              options={sprints.map((s) => ({ value: s.object_id, label: s.name }))}
-              onChange={(v) => onChange(index, 'sprint_id', v || '')}
-            />
-            <InputNumber
-              size="large"
-              className="work-item-time"
-              min={0.1}
-              step={0.1}
-              precision={1}
-              placeholder="工时"
-              value={item.time === '' || item.time == null ? null : Number(item.time)}
-              onChange={(v) => onChange(index, 'time', v == null ? '' : v)}
-            />
-            <DatePicker
-              size="large"
-              className="work-item-date"
-              value={item.date ? dayjs(item.date) : null}
-              onChange={(_, str) => onChange(index, 'date', str || '')}
-              allowClear={false}
-              placeholder="请选择日期"
-            />
-            <Button
-              danger
-              type="primary"
-              size="large"
-              className="work-item-remove"
-              icon={<MinusOutlined />}
-              onClick={() => onRemove(index)}
-            />
-          </div>
-        ))}
+        {workItems.map((item, index) => {
+          const workspace = item.workspace_name || defaultWorkspace || undefined;
+          const sprints = (workspace && sprintsByWs[workspace]) || [];
+          return (
+            <div key={index} className="work-item-row">
+              <Input
+                size="large"
+                className="work-item-name"
+                placeholder="事项名称"
+                value={item.name}
+                onChange={(e) => onChange(index, 'name', e.target.value)}
+              />
+              <Select
+                size="large"
+                className="work-item-workspace"
+                placeholder="工作空间"
+                value={workspace}
+                options={workspaceOptions}
+                onChange={(v) => handleWorkspaceChange(index, v)}
+              />
+              <Select
+                size="large"
+                className="work-item-sprint"
+                placeholder="请选择迭代"
+                allowClear
+                value={item.sprint_id || (workspace === defaultWorkspace ? preferredSprint : undefined) || undefined}
+                options={sprints.map((s) => ({ value: s.object_id, label: s.name }))}
+                onChange={(v) => onChange(index, 'sprint_id', v || '')}
+              />
+              <InputNumber
+                size="large"
+                className="work-item-time"
+                min={0.1}
+                step={0.1}
+                precision={1}
+                placeholder="工时"
+                value={item.time === '' || item.time == null ? null : Number(item.time)}
+                onChange={(v) => onChange(index, 'time', v == null ? '' : v)}
+              />
+              <DatePicker
+                size="large"
+                className="work-item-date"
+                value={item.date ? dayjs(item.date) : null}
+                onChange={(_, str) => onChange(index, 'date', str || '')}
+                allowClear={false}
+                placeholder="请选择日期"
+              />
+              <Button
+                danger
+                type="primary"
+                size="large"
+                className="work-item-remove"
+                icon={<MinusOutlined />}
+                onClick={() => onRemove(index)}
+              />
+            </div>
+          );
+        })}
       </Space>
 
       <div className="action-btn-row">
@@ -140,7 +202,7 @@ export default function WorkItemForm({
       </div>
 
       <Typography.Paragraph type="secondary" className="work-item-hint">
-        每个事项包含名称、工时和日期；AI帮写将自动填充当前周未填写的事项内容
+        每个事项包含名称、工作空间、迭代、工时和日期；AI帮写将自动填充当前周未填写的事项内容
       </Typography.Paragraph>
 
       <div className="form-action-bar">

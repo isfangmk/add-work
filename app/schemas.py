@@ -38,6 +38,7 @@ class StartTaskRequest(BaseModel):
     cookie: str
     sourceObjectId: str
     workspace_name: str
+    workspaceNames: Optional[List[str]] = None
     names: List[str] = Field(..., min_length=1)
     sprintIds: List[str]
     times: List[float] = Field(..., min_length=1)
@@ -51,8 +52,16 @@ class StartTaskRequest(BaseModel):
             raise ValueError("工时须为大于 0 的有效数字")
         return values
 
+    def resolved_workspace_names(self) -> List[str]:
+        if self.workspaceNames:
+            return self.workspaceNames
+        return [self.workspace_name] * len(self.names)
+
     def lengths_match(self) -> bool:
-        return len({len(self.names), len(self.dates), len(self.times)}) == 1
+        lengths = {len(self.names), len(self.dates), len(self.times), len(self.sprintIds)}
+        if self.workspaceNames is not None:
+            lengths.add(len(self.workspaceNames))
+        return len(lengths) == 1
 
 
 class ApiResponse(BaseModel):

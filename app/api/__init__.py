@@ -77,6 +77,20 @@ async def llm_summary_by_range(request: LLMSummaryRequest) -> JSONResponse:
         raise HTTPException(status_code=500, detail=f"LLM总结失败：{exc}") from exc
 
 
+@router.get("/get-workspace-list", response_model=ApiResponse)
+async def get_workspace_list() -> JSONResponse:
+    configs = get_workspace_configs()
+    data = [
+        {
+            "workspace_name": name,
+            "workspace_id": cfg["workspace_id"],
+            "workspace_key": cfg["workspace_key"],
+        }
+        for name, cfg in configs.items()
+    ]
+    return JSONResponse(ApiResponse.ok(data=data).model_dump())
+
+
 @router.post("/get-sprint-list", response_model=ApiResponse)
 async def get_sprint_list(request: SprintListRequest) -> JSONResponse:
     try:
@@ -149,7 +163,13 @@ async def get_work_items_by_range(request: WorkItemsRequest) -> JSONResponse:
 async def start_task(request: StartTaskRequest) -> JSONResponse:
     try:
         if not request.lengths_match():
-            raise ValidationAppError("名称、工时、日期列表长度不一致")
+            raise ValidationAppError("名称、工时、日期、迭代、工作空间列表长度不一致")
+
+        workspace_names = request.resolved_workspace_names()
+        configs = get_workspace_configs()
+        for name in workspace_names:
+            if name not in configs:
+                raise WorkspaceNotFoundError(name)
 
         task_id = new_task_id()
         init_task(task_id)
@@ -164,7 +184,7 @@ async def start_task(request: StartTaskRequest) -> JSONResponse:
                 request.sprintIds,
                 request.times,
                 request.dates,
-                request.workspace_name,
+                workspace_names,
                 task_id,
                 is_update=request.is_update,
             )
@@ -172,7 +192,7 @@ async def start_task(request: StartTaskRequest) -> JSONResponse:
         return JSONResponse(
             ApiResponse.ok(data={"taskId": task_id}, msg="任务已启动").model_dump()
         )
-    except ValidationAppError:
+    except (ValidationAppError, WorkspaceNotFoundError):
         raise
     except Exception as exc:
         logger.error("启动任务失败：%s", exc)

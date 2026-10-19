@@ -215,7 +215,7 @@ async def _run_task(
         sprint_ids,
         times,
         dates,
-        workspace_name,
+        [workspace_name] * len(names),
         task_id,
         is_update=is_update,
     )

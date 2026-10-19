@@ -561,6 +561,11 @@ body {
   min-width: 160px;
 }
 
+.work-item-workspace {
+  flex: 1.2 1 140px;
+  min-width: 120px;
+}
+
 .work-item-sprint {
   flex: 1.5 1 160px;
   min-width: 140px;

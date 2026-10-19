@@ -8,6 +8,7 @@ export const API = {
   startTask: `${API_BASE}/start-task`,
   taskStatus: `${API_BASE}/task-status`,
   llmSummary: `${API_BASE}/llm-summary-by-range`,
+  workspaceList: `${API_BASE}/get-workspace-list`,
   sprintList: `${API_BASE}/get-sprint-list`,
   feedback: `${API_BASE}/feedback`
 };
@@ -27,6 +28,11 @@ export function fetchCurrentUser(cookie) {
 
 export function fetchWorkItems(payload) {
   return postJson(API.workItems, payload);
+}
+
+export async function fetchWorkspaces() {
+  const res = await fetch(API.workspaceList);
+  return res.json();
 }
 
 export function fetchSprints(cookie, workspaceName) {
