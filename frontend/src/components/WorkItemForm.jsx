@@ -202,7 +202,7 @@ export default function WorkItemForm({
       </div>
 
       <Typography.Paragraph type="secondary" className="work-item-hint">
-        每个事项包含名称、工作空间、迭代、工时和日期；AI帮写将自动填充当前周未填写的事项内容
+        每个事项包含名称、工作空间、迭代、工时和日期；基于Git提交AI帮写将自动填充当前周未填写的事项内容
       </Typography.Paragraph>
 
       <div className="form-action-bar">
