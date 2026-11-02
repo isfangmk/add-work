@@ -127,21 +127,19 @@ docker rm add_work
 
 ```
 add-work/
-├── app/                 # 后端应用目录
-│   ├── config.py       # 配置文件
-│   ├── db.py           # 数据库操作
-│   ├── mcp.py          # FastMCP 工具
-│   ├── api/            # HTTP API
-│   ├── services.py     # 业务逻辑
-│   └── ...
-├── frontend/           # 前端应用
-│   ├── src/           # 源代码
-│   ├── build/         # 构建产物
-│   └── package.json
-├── main.py            # 应用入口
-├── Dockerfile         # Docker 配置
-├── entrypoint.sh      # 容器启动脚本
-└── requirements.txt   # Python 依赖
+├── app/
+│   ├── api/            # HTTP 路由
+│   ├── clients/        # 外部系统客户端（Gitee / GitLab / LLM）
+│   ├── core/           # 配置、日志、异常、HTTP 客户端
+│   ├── mcp/            # FastMCP 工具
+│   ├── schemas/        # 请求/响应模型
+│   ├── services/       # 业务编排与 Cookie 保活
+│   └── storage/        # SQLite 与任务状态
+├── frontend/
+├── main.py
+├── Dockerfile
+├── entrypoint.sh
+└── requirements.txt
 ```
 
 ## 端口说明

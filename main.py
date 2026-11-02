@@ -18,12 +18,12 @@ from fastapi.staticfiles import StaticFiles
 load_dotenv()
 
 from app.api import router  # noqa: E402
-from app.config import settings  # noqa: E402
-from app.db import init_db  # noqa: E402
-from app.exceptions import AppError  # noqa: E402
-from app.http_client import close_http_client  # noqa: E402
-from app.keepalive import restore_on_startup  # noqa: E402
-from app.logger import get_logger  # noqa: E402
+from app.core.config import settings  # noqa: E402
+from app.storage.db import init_db  # noqa: E402
+from app.core.exceptions import AppError  # noqa: E402
+from app.core.http_client import close_http_client  # noqa: E402
+from app.services.keepalive import restore_on_startup  # noqa: E402
+from app.core.logger import get_logger  # noqa: E402
 from app.mcp import mcp_http_app, mcp_token_from_headers  # noqa: E402
 from app.schemas import ApiResponse  # noqa: E402
 from sqlite_web.sqlite_web import app as sqlite_web_app  # noqa: E402

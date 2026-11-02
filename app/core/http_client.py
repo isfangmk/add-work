@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import httpx
 
-from app.config import settings
+from app.core.config import settings
 
 http_client = httpx.AsyncClient(timeout=settings.http_timeout)
 

@@ -5,10 +5,10 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Dict, Optional
 
-from app.config import settings
-from app.db import delete_cookie_record, get_all_cookie_records, update_cookie_real_name
-from app.http_client import http_client
-from app.logger import get_logger
+from app.core.config import settings
+from app.storage.db import delete_cookie_record, get_all_cookie_records, update_cookie_real_name
+from app.core.http_client import http_client
+from app.core.logger import get_logger
 
 logger = get_logger(__name__)
 

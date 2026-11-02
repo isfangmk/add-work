@@ -6,15 +6,15 @@ import asyncio
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.clients import gitee
-from app.config import settings
-from app.db import (
+from app.core.config import settings
+from app.storage.db import (
     get_workspace_configs,
     save_task_record,
     upsert_cookie_record,
 )
-from app.keepalive import is_active, start as start_keepalive
-from app.logger import get_logger
-from app.task_store import append_log, finish_task
+from app.services.keepalive import is_active, start as start_keepalive
+from app.core.logger import get_logger
+from app.storage.task_store import append_log, finish_task
 
 logger = get_logger(__name__)
 

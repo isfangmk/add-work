@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import List, Optional
 
 from openai import AsyncOpenAI
 
 from app.clients.gitlab import fetch_commits
-from app.config import settings
-from app.http_client import http_client
-from app.logger import get_logger
+from app.core.config import settings
+from app.core.http_client import http_client
+from app.core.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -50,6 +51,7 @@ async def summarize_commits(
     end_date: str,
     exclude_dates: List[str],
 ) -> str:
+    total_started = time.perf_counter()
     commits = await fetch_commits(author, start_date, end_date)
     exclude = set(exclude_dates)
     filtered = [c for c in commits if c.get("date") not in exclude]
@@ -69,6 +71,7 @@ async def summarize_commits(
         if model.startswith("doubao")
         else {"enable_thinking": False}
     )
+    llm_started = time.perf_counter()
     try:
         resp = await client.chat.completions.create(
             messages=[
@@ -80,7 +83,18 @@ async def summarize_commits(
             max_tokens=500,
             extra_body=extra_body,
         )
-        return resp.choices[0].message.content or ""
+        content = resp.choices[0].message.content or ""
+        logger.info(
+            "LLM 总结完成 count=%s llm_elapsed_ms=%.0f total_elapsed_ms=%.0f",
+            len(filtered),
+            (time.perf_counter() - llm_started) * 1000,
+            (time.perf_counter() - total_started) * 1000,
+        )
+        return content
     except Exception as exc:
-        logger.error("大模型调用失败：%s", exc)
+        logger.error(
+            "大模型调用失败：%s llm_elapsed_ms=%.0f",
+            exc,
+            (time.perf_counter() - llm_started) * 1000,
+        )
         return ""

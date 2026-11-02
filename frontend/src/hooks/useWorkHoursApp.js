@@ -330,7 +330,7 @@ export function useWorkHoursApp() {
       }
       const entries = Object.entries(data.data || {});
       if (!entries.length) {
-        message.info(data.msg || '当前日期范围内无生成的事项内容');
+        message.info(data.msg || '该日期范围内没有可用的 Git 提交记录');
         return;
       }
       setWorkItems(

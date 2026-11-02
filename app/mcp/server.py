@@ -18,11 +18,15 @@ load_dotenv()
 
 from app.clients import gitee  # noqa: E402
 from app.clients.llm import summarize_commits as llm_summarize_commits  # noqa: E402
-from app.config import settings  # noqa: E402
-from app.db import get_cookie_record, get_cookie_record_by_real_name, get_workspace_configs, update_cookie_real_name  # noqa: E402
-from app.logger import get_logger  # noqa: E402
-from app.services import load_calendar_items, resolve_current_user, run_work_task  # noqa: E402
-from app.task_store import copy_logs, get_task, init_task, new_task_id  # noqa: E402
+from app.core.config import settings  # noqa: E402
+from app.storage.db import get_cookie_record, get_cookie_record_by_real_name, get_workspace_configs, update_cookie_real_name  # noqa: E402
+from app.core.logger import get_logger  # noqa: E402
+from app.services.work import (  # noqa: E402
+    load_calendar_items,
+    resolve_current_user,
+    run_work_task,
+)
+from app.storage.task_store import copy_logs, get_task, init_task, new_task_id  # noqa: E402
 
 logger = get_logger(__name__)
 _TZ = ZoneInfo("Asia/Shanghai")
@@ -383,7 +387,7 @@ async def suggest_titles(
         git_email, start_date, end_date, exclude_dates or []
     )
     if not raw:
-        return _ok({}, msg="该区间没有可用提交或 LLM 未配置")
+        return _ok({}, msg="该日期范围内没有可用的 Git 提交记录")
     try:
         summary = json.loads(raw)
     except json.JSONDecodeError:
@@ -392,6 +396,8 @@ async def suggest_titles(
         k: (v[0] if isinstance(v, list) and v else str(v))
         for k, v in summary.items()
     }
+    if not cleaned:
+        return _ok({}, msg="该日期范围内没有可用的 Git 提交记录")
     return _ok(cleaned)
 
 
@@ -534,7 +540,7 @@ mcp_http_app = mcp.http_app(path="/")
 
 
 if __name__ == "__main__":
-    from app.db import init_db
+    from app.storage.db import init_db
 
     init_db()
     mcp.run()

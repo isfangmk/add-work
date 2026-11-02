@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Any, Dict, List, Optional
 
-from app.logger import get_logger
+from app.core.logger import get_logger
 
 logger = get_logger(__name__)
 
