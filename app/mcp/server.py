@@ -55,9 +55,10 @@ mcp = FastMCP(
         "流程：whoami → get_calendar 看周历并使用 recommended_source；"
         "需要换工作空间时 list_workspaces，默认用源事项的 workspace_name；"
         "换空间或改迭代时 list_sprints；可选 suggest_titles；"
-        "需要关联需求时 search_requirements 拿需求 id；"
-        "create_from_source 克隆源事项写入新工时（可按事项指定不同工作空间和关联需求）；"
-        "改已有事项用 update_item（也可传 requirement_id 关联需求）。"
+        "create_from_source 克隆源事项写入新工时（可按事项指定不同工作空间）；"
+        "改已有事项用 update_item。"
+        "写入前必须先 search_requirements 拿需求 id，"
+        "create_from_source 传 requirement_ids、update_item 传 requirement_id。"
         "用户粘贴企业微信「智能总结」生成的每日工作事项时："
         "提炼成工时事项名称，精简、客观，一般不超过 50 个字，不要整段粘贴原文。"
         "不要自己编造 object_id，必须从日历拷贝。"
@@ -213,7 +214,7 @@ async def _run_task(
     dates: List[str],
     *,
     is_update: bool,
-    requirement_ids: Optional[List[str]] = None,
+    requirement_ids: List[str],
 ) -> Dict[str, Any]:
     task_id = new_task_id()
     init_task(task_id)
@@ -458,7 +459,7 @@ async def search_requirements(
     ] = "",
     size: Annotated[int, Field(description="返回条数，默认 20")] = 20,
 ) -> Dict[str, Any]:
-    """按关键字搜索需求（三空间）。create_from_source/update_item 的 requirement_ids 从本工具返回的 id 里选。"""
+    """按关键字搜索需求（三空间）。create_from_source/update_item 的关联需求 id 从本工具返回值里选。"""
     err, cookie, _user, _email = await _require_user(account)
     if err:
         return err
@@ -528,6 +529,14 @@ async def create_from_source(
             description="各事项迭代 ID，与 names 一一对应。从 recommended_source.sprint_id 或 list_sprints 拷贝"
         ),
     ],
+    requirement_ids: Annotated[
+        List[str],
+        Field(
+            description=(
+                "各事项关联的需求 ID，与 names 一一对应。从 search_requirements 返回的 id 里选"
+            )
+        ),
+    ],
     workspace_names: Annotated[
         Optional[List[str]],
         Field(
@@ -537,27 +546,16 @@ async def create_from_source(
             )
         ),
     ] = None,
-    requirement_ids: Annotated[
-        Optional[List[str]],
-        Field(
-            description=(
-                "可选。各事项关联的需求 ID，与 names 一一对应。"
-                "从 search_requirements 返回的 id 里选；不传则不关联"
-            )
-        ),
-    ] = None,
 ) -> Dict[str, Any]:
-    """克隆源事项并创建新工时。names、hours、dates、sprint_ids 长度必须相同；可选按事项指定工作空间和关联需求。"""
-    if not names or not hours or not dates or not sprint_ids:
-        return _fail("names、hours、dates、sprint_ids 不能为空")
-    lengths = {len(names), len(hours), len(dates), len(sprint_ids)}
+    """克隆源事项并创建新工时。names、hours、dates、sprint_ids、requirement_ids 长度必须相同；可按事项指定不同工作空间。"""
+    if not names or not hours or not dates or not sprint_ids or not requirement_ids:
+        return _fail("names、hours、dates、sprint_ids、requirement_ids 不能为空")
+    lengths = {len(names), len(hours), len(dates), len(sprint_ids), len(requirement_ids)}
     if workspace_names is not None:
         lengths.add(len(workspace_names))
-    if requirement_ids is not None:
-        lengths.add(len(requirement_ids))
     if len(lengths) != 1:
         return _fail(
-            "names、hours、dates、sprint_ids（及 workspace_names、requirement_ids）长度必须相同"
+            "names、hours、dates、sprint_ids、requirement_ids（及 workspace_names）长度必须相同"
         )
     if any(h <= 0 for h in hours):
         return _fail("工时须为大于 0 的数字")
@@ -571,10 +569,13 @@ async def create_from_source(
     clean_names = [n.strip() for n in names]
     clean_dates = [d.strip() for d in dates]
     resolved_sprints = [sid.strip() for sid in sprint_ids]
+    clean_requirements = [rid.strip() for rid in requirement_ids]
     if not all(clean_names) or not all(clean_dates):
         return _fail("每条事项都需要 name 和 date")
     if not all(resolved_sprints):
         return _fail("每条事项都需要 sprint_ids 中的迭代 ID")
+    if not all(clean_requirements):
+        return _fail("每条事项都需要 requirement_ids 中的关联需求 ID")
 
     err, cookie, username, _email = await _require_user(account)
     if err:
@@ -598,7 +599,7 @@ async def create_from_source(
         [float(h) for h in hours],
         clean_dates,
         is_update=False,
-        requirement_ids=requirement_ids,
+        requirement_ids=clean_requirements,
     )
 
 
@@ -615,11 +616,9 @@ async def update_item(
     date: Annotated[str, Field(description="日期 YYYY-MM-DD")],
     sprint_id: Annotated[str, Field(description="迭代 ID")],
     requirement_id: Annotated[
-        Optional[str],
-        Field(
-            description="可选。关联的需求 ID，从 search_requirements 返回的 id 里选；不传则不关联"
-        ),
-    ] = None,
+        str,
+        Field(description="关联的需求 ID。从 search_requirements 返回的 id 里选"),
+    ],
 ) -> Dict[str, Any]:
     """更新已有工时事项，不克隆。"""
     ws = (workspace_name or "").strip()
@@ -629,6 +628,8 @@ async def update_item(
         return _fail("object_id、name、date 不能为空")
     if not (sprint_id or "").strip():
         return _fail("缺少 sprint_id")
+    if not (requirement_id or "").strip():
+        return _fail("缺少 requirement_id")
 
     err, cookie, username, _email = await _require_user(account)
     if err:
@@ -648,7 +649,7 @@ async def update_item(
         [float(hours)],
         [date.strip()],
         is_update=True,
-        requirement_ids=[requirement_id] if requirement_id else None,
+        requirement_ids=[requirement_id.strip()],
     )
 
 
