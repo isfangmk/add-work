@@ -10,6 +10,7 @@ export const API = {
   llmSummary: `${API_BASE}/llm-summary-by-range`,
   workspaceList: `${API_BASE}/get-workspace-list`,
   sprintList: `${API_BASE}/get-sprint-list`,
+  requirementSearch: `${API_BASE}/search-requirements`,
   favoriteWorkspaces: `${API_BASE}/get-favorite-workspaces`,
   saveFavoriteWorkspaces: `${API_BASE}/save-favorite-workspaces`,
   feedback: `${API_BASE}/feedback`
@@ -39,6 +40,10 @@ export function fetchWorkspaces(cookie: string): Promise<any> {
 
 export function fetchSprints(cookie: string, workspaceName: string): Promise<any> {
   return postJson(API.sprintList, { cookie, workspace_name: workspaceName });
+}
+
+export function searchRequirements(cookie: string, keyword: string = ''): Promise<any> {
+  return postJson(API.requirementSearch, { cookie, keyword });
 }
 
 export function fetchFavoriteWorkspaces(username: string): Promise<any> {

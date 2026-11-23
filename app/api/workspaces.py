@@ -14,6 +14,7 @@ from app.core.logger import get_logger
 from app.schemas import (
     ApiResponse,
     FavoriteWorkspacesRequest,
+    RequirementSearchRequest,
     SprintListRequest,
     UserRequest,
     WorkspaceListRequest,
@@ -97,3 +98,18 @@ async def get_sprint_list(request: SprintListRequest) -> JSONResponse:
     except Exception as exc:
         logger.error("获取迭代列表失败：%s", exc)
         raise HTTPException(status_code=500, detail=f"获取迭代列表失败：{exc}") from exc
+
+
+@router.post("/search-requirements", response_model=ApiResponse)
+async def search_requirements(request: RequirementSearchRequest) -> JSONResponse:
+    try:
+        headers = settings.build_headers(request.cookie)
+        requirements = await gitee.search_requirements(headers, request.keyword, request.size)
+        if requirements is None:
+            raise AuthAppError("获取需求列表失败，请检查Cookie是否有效")
+        return JSONResponse(ApiResponse.ok(data=requirements).model_dump())
+    except AuthAppError:
+        raise
+    except Exception as exc:
+        logger.error("获取需求列表失败：%s", exc)
+        raise HTTPException(status_code=500, detail=f"获取需求列表失败：{exc}") from exc

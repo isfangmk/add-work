@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Alert, DatePicker, Form, Input, InputNumber, Modal, Select } from 'antd';
 import dayjs from 'dayjs';
 import { fetchSprints, fetchWorkspaces } from '../api';
+import RequirementSelect from './RequirementSelect';
 import { orderWorkspacesByFavorites } from '../utils/workspaces';
 
 export default function EditItemModal({ open, item, cookie, favorites, onClose, onSubmit }) {
@@ -39,6 +40,7 @@ export default function EditItemModal({ open, item, cookie, favorites, onClose, 
       name: item.name || '',
       workspace_name: item.workspace_name || undefined,
       sprintId: item.sprint_id,
+      requirementId: item.requirement_id || undefined,
       time: item.time != null ? Number(item.time) : undefined,
       date: item.date ? dayjs(item.date) : null
     });
@@ -97,6 +99,7 @@ export default function EditItemModal({ open, item, cookie, favorites, onClose, 
         name: values.name.trim(),
         workspaceName: values.workspace_name || item.workspace_name,
         sprintId: values.sprintId || item.sprint_id,
+        requirementId: values.requirementId || '',
         time: values.time,
         date: values.date.format('YYYY-MM-DD')
       });
@@ -134,6 +137,8 @@ export default function EditItemModal({ open, item, cookie, favorites, onClose, 
           rules={[{ required: true, message: '请选择工作空间' }]}
         >
           <Select
+            showSearch
+            optionFilterProp="label"
             placeholder="请选择工作空间"
             options={orderWorkspacesByFavorites(workspaces, favorites).map((ws) => ({
               value: ws.workspace_name,
@@ -151,10 +156,15 @@ export default function EditItemModal({ open, item, cookie, favorites, onClose, 
         <Form.Item label="迭代" name="sprintId">
           <Select
             allowClear
+            showSearch
+            optionFilterProp="label"
             placeholder={workspaceName ? '请选择迭代' : '请先选择工作空间'}
             disabled={!workspaceName}
             options={sprints.map((s) => ({ value: s.object_id, label: s.name }))}
           />
+        </Form.Item>
+        <Form.Item label="关联需求（可选）" name="requirementId">
+          <RequirementSelect cookie={cookie} />
         </Form.Item>
         <Form.Item
           label="工时（小时）"

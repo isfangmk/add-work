@@ -18,7 +18,15 @@ import {
   saveCookie
 } from '../utils/storage';
 
-const EMPTY_ITEM = { name: '', time: '', date: '', sprint_id: '', workspace_name: '' };
+const EMPTY_ITEM = {
+  name: '',
+  time: '',
+  date: '',
+  sprint_id: '',
+  workspace_name: '',
+  requirement_id: '',
+  requirement_name: ''
+};
 
 function pickLatestSourceItem(data) {
   if (!hasValidDays(data)) return null;
@@ -265,7 +273,8 @@ export function useWorkHoursApp() {
           if (i.sprint_id) return i.sprint_id;
           const ws = i.workspace_name || defaultWorkspace;
           return ws === defaultWorkspace ? defaultSprint : '';
-        })
+        }),
+        requirementIds: valid.map((i) => i.requirement_id || '')
       });
       if (!data.success) throw new Error(data.msg || '任务启动失败');
       const taskId = data.data?.taskId;
@@ -294,7 +303,7 @@ export function useWorkHoursApp() {
   ]);
 
   const submitUpdate = useCallback(
-    async ({ item, name, workspaceName, sprintId, time, date }) => {
+    async ({ item, name, workspaceName, sprintId, time, date, requirementId }) => {
       if (!item || !username || !cookie) return false;
       const workspace = workspaceName || item.workspace_name;
       if (!workspace) {
@@ -313,7 +322,8 @@ export function useWorkHoursApp() {
           names: [name.trim()],
           sprintIds: [sprintId || item.sprint_id],
           times: [parseFloat(Number(time).toFixed(1))],
-          dates: [date]
+          dates: [date],
+          requirementIds: [requirementId || '']
         });
         if (!data.success) throw new Error(data.msg || '提交失败');
         const taskId = data.data?.taskId;

@@ -115,6 +115,54 @@ async def search_work_items(
         return None
 
 
+async def search_requirements(
+    headers: Dict[str, str],
+    keyword: str = "",
+    size: int = 20,
+) -> Optional[List[Dict[str, Any]]]:
+    """按关键字搜索需求（服务端 IQL 模糊匹配标题或编号），不拉全量。
+
+    实测该接口仅支持 '标题' ~ 'kw' 与 key = 'kw'，不支持名称字段的 contains/like。
+    关键字为空时 '标题' ~ '' 等价于不过滤。
+    """
+    resp = None
+    try:
+        kw = (keyword or "").strip().replace("'", "\\'").replace('"', '\\"')
+        iql = (
+            '(\'所属空间\' in ["产品中心","26年春季正式版","26年1230预览版"] '
+            "and '类型' in [\"需求\"] "
+            f"and ('标题' ~ '{kw}' or key = '{kw}')) order by  创建时间 desc"
+        )
+        body = {
+            "iql": iql,
+            "size": size,
+            "from": 0,
+            "extraSearchField": "",
+            "fromField": "DataQuote01",
+            "fields": ["name", "key", "status", "itemType", "id"],
+            "refererInfo": {"workspaceId": "SyxVCy6BOs"},
+        }
+        resp = await http_client.post(
+            settings.base_url + "/api/team/parse/api/search?from=DataQuote01",
+            headers=headers,
+            json=body,
+        )
+        resp.raise_for_status()
+        items = resp.json()["payload"]["items"]
+        return [
+            {
+                "id": item["id"],
+                "key": item.get("key", ""),
+                "name": item.get("name", ""),
+            }
+            for item in items
+            if item.get("id")
+        ]
+    except Exception as exc:
+        logger.error(format_http_error("获取需求列表失败", exc, resp))
+        return None
+
+
 def _jump_url(workspace_key: str, board_key: str, view_id: str) -> str:
     return (
         f"{settings.base_url}/{settings.parse_app_id}/{workspace_key}/proxima"
@@ -342,6 +390,7 @@ async def update_item(
     name: str,
     task_id: str,
     sprint_id: Optional[str] = None,
+    data_quote_id: Optional[str] = None,
 ) -> bool:
     if not object_id or not target_keys or not time:
         append_log(
@@ -355,13 +404,15 @@ async def update_item(
         append_log(task_id, f"❌ 日期格式错误[{date}]：{exc}（正确格式：2025-10-14）")
         return False
 
-    body: Dict[str, Any] = {"values": {"__screen_type": "view"}}
+    body: Dict[str, Any] = {"parseContext": {}, "values": {"__screen_type": "view"}}
     if name:
         body["name"] = name
     for i, key in enumerate(target_keys):
         body["values"][key] = ts if i < 4 else time
     if sprint_id:
         body["values"]["sprint"] = [sprint_id]
+    if data_quote_id:
+        body["values"]["DataQuote01"] = [data_quote_id]
 
     resp = None
     try:
@@ -374,6 +425,8 @@ async def update_item(
         msg = f"✅ 更新事项[{object_id}]成功，目标日期：{date} | 工时：{time}个小时"
         if sprint_id:
             msg += f" | 迭代ID：{sprint_id}"
+        if data_quote_id:
+            msg += f" | 关联需求：{data_quote_id}"
         append_log(task_id, msg)
         return True
     except Exception as exc:

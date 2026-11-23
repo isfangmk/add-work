@@ -10,6 +10,10 @@ from app.clients import gitee
 from app.core import config
 from app.storage import db
 
+# 保存真实写入函数，供需要测试其 body 拼装的用例显式恢复（底层 HTTP 会被用例 mock，不会联网）
+_REAL_CLONE_ITEM = gitee.clone_item
+_REAL_UPDATE_ITEM = gitee.update_item
+
 
 @pytest.fixture(autouse=True)
 def temp_db(tmp_path, monkeypatch):
@@ -36,3 +40,10 @@ def block_work_writes(monkeypatch):
 
     monkeypatch.setattr(gitee, "clone_item", forbidden)
     monkeypatch.setattr(gitee, "update_item", forbidden)
+
+
+@pytest.fixture
+def real_gitee_writes(monkeypatch):
+    """显式恢复真实写入函数，用于测试其请求体拼装（用例必须自行 mock http_client）。"""
+    monkeypatch.setattr(gitee, "clone_item", _REAL_CLONE_ITEM)
+    monkeypatch.setattr(gitee, "update_item", _REAL_UPDATE_ITEM)

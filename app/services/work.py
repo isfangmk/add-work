@@ -99,8 +99,10 @@ async def run_work_task(
     task_id: str,
     *,
     is_update: bool = False,
+    data_quote_ids: Optional[List[str]] = None,
 ) -> None:
     """后台克隆或更新事项。"""
+    requirement_ids = data_quote_ids or [""] * len(names)
     primary_workspace = workspace_names[0] if workspace_names else ""
     logger.info(
         "任务开始 %s",
@@ -122,10 +124,23 @@ async def run_work_task(
     jump_url = None
 
     try:
-        if len({len(names), len(times), len(dates), len(sprint_ids), len(workspace_names)}) != 1:
+        if (
+            len(
+                {
+                    len(names),
+                    len(times),
+                    len(dates),
+                    len(sprint_ids),
+                    len(workspace_names),
+                    len(requirement_ids),
+                }
+            )
+            != 1
+        ):
             raise ValueError(
                 f"名称（{len(names)}）工时（{len(times)}）日期（{len(dates)}）"
-                f"迭代（{len(sprint_ids)}）工作空间（{len(workspace_names)}）长度不一致"
+                f"迭代（{len(sprint_ids)}）工作空间（{len(workspace_names)}）"
+                f"关联需求（{len(requirement_ids)}）长度不一致"
             )
 
         workspaces = await gitee.list_workspaces(headers)
@@ -138,8 +153,17 @@ async def run_work_task(
         # 当前关注空间 key（用于写入成功后自动收藏未关注的空间）
         fav_keys = {f["workspace_key"] for f in get_favorite_workspaces(username or "")}
 
-        for idx, (name, sprint_id, hours, day, workspace_name) in enumerate(
-            zip(names, sprint_ids, times, dates, workspace_names, strict=True), 1
+        for idx, (name, sprint_id, hours, day, workspace_name, data_quote_id) in enumerate(
+            zip(
+                names,
+                sprint_ids,
+                times,
+                dates,
+                workspace_names,
+                requirement_ids,
+                strict=True,
+            ),
+            1,
         ):
             workspace_key = name_to_key.get(workspace_name)
             if not workspace_key:
@@ -185,7 +209,15 @@ async def run_work_task(
                 continue
 
             if not await gitee.update_item(
-                headers, object_id, keys, day, hours, name, task_id, sprint_id
+                headers,
+                object_id,
+                keys,
+                day,
+                hours,
+                name,
+                task_id,
+                sprint_id,
+                data_quote_id=data_quote_id or None,
             ):
                 append_log(task_id, f"❌ 更新事项[{object_id}]失败")
                 all_ok = False

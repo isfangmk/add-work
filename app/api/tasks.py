@@ -55,6 +55,7 @@ async def start_task(request: StartTaskRequest) -> JSONResponse:
                 workspace_names,
                 task_id,
                 is_update=request.is_update,
+                data_quote_ids=request.resolved_requirement_ids(),
             )
         )
         return JSONResponse(ApiResponse.ok(data={"taskId": task_id}, msg="任务已启动").model_dump())

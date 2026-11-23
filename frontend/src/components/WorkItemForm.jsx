@@ -12,6 +12,7 @@ import {
 import { MinusOutlined, PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { fetchSprints, fetchWorkspaces } from '../api';
+import RequirementSelect from './RequirementSelect';
 import { orderWorkspacesByFavorites } from '../utils/workspaces';
 
 export default function WorkItemForm({
@@ -177,6 +178,8 @@ export default function WorkItemForm({
                 size="large"
                 className="work-item-workspace"
                 placeholder="工作空间"
+                showSearch
+                optionFilterProp="label"
                 value={workspace}
                 options={workspaceOptions}
                 onChange={(v) => handleWorkspaceChange(index, v)}
@@ -185,12 +188,23 @@ export default function WorkItemForm({
                 size="large"
                 className="work-item-sprint"
                 placeholder={workspace ? '请选择迭代' : '请先选择工作空间'}
+                showSearch
+                optionFilterProp="label"
                 allowClear
                 disabled={!workspace}
                 value={sprintValue || undefined}
                 options={sprints.map((s) => ({ value: s.object_id, label: s.name }))}
                 onChange={(v) => onChange(index, 'sprint_id', v || '')}
               />
+              <div className="work-item-requirement">
+                <RequirementSelect
+                  cookie={cookie}
+                  value={item.requirement_id}
+                  onChange={(id, name) =>
+                    onChange(index, { requirement_id: id, requirement_name: name })
+                  }
+                />
+              </div>
               <InputNumber
                 size="large"
                 className="work-item-time"

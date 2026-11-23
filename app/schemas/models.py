@@ -18,6 +18,12 @@ class WorkspaceListRequest(BaseModel):
     cookie: str
 
 
+class RequirementSearchRequest(BaseModel):
+    cookie: str
+    keyword: str = ""
+    size: int = Field(default=20, ge=1, le=200)
+
+
 class FavoriteWorkspaceItem(BaseModel):
     workspace_key: str
     workspace_name: str
@@ -60,6 +66,7 @@ class StartTaskRequest(BaseModel):
     sprintIds: List[str]
     times: List[float] = Field(..., min_length=1)
     dates: List[str] = Field(..., min_length=1)
+    requirementIds: Optional[List[str]] = None
     is_update: bool = False
 
     @field_validator("times")
@@ -74,10 +81,18 @@ class StartTaskRequest(BaseModel):
             return self.workspaceNames
         return [self.workspace_name] * len(self.names)
 
+    def resolved_requirement_ids(self) -> List[str]:
+        if not self.requirementIds:
+            return [""] * len(self.names)
+        # 长度已由 lengths_match 校验；不足时用空串补齐，保证与 names 一一对应
+        return self.requirementIds + [""] * (len(self.names) - len(self.requirementIds))
+
     def lengths_match(self) -> bool:
         lengths = {len(self.names), len(self.dates), len(self.times), len(self.sprintIds)}
         if self.workspaceNames is not None:
             lengths.add(len(self.workspaceNames))
+        if self.requirementIds is not None:
+            lengths.add(len(self.requirementIds))
         return len(lengths) == 1
 
 

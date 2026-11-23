@@ -607,6 +607,11 @@ body {
   min-width: 140px;
 }
 
+.work-item-requirement {
+  flex: 1.5 1 200px;
+  min-width: 160px;
+}
+
 .work-item-time {
   flex: 0 1 110px;
   width: 110px !important;
