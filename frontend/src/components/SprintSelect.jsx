@@ -8,7 +8,7 @@ import { sortSprintsWithPreferred } from '../utils/workspaceOptions';
  * - 默认「只显示当前空间的迭代」勾选，走当前空间过滤
  * - 取消勾选时拉全部空间最近100条，支持输入关键字服务端搜索（防抖）
  * - 勾选框放在下拉浮层顶部（dropdownRender），不展开时不占位
- * - 每次加载/展开都清空上一次的搜索结果与输入框，避免残留
+ * - 全量结果缓存：展开时用缓存恢复，避免重复请求，也不残留上次搜索结果
  */
 export default function SprintSelect({
   cookie,
@@ -26,10 +26,12 @@ export default function SprintSelect({
   const keyword = useRef('');
   const timer = useRef(null);
   const latest = useRef(0);
+  const fullOptions = useRef([]); // 缓存全量选项，展开时直接恢复，不重复请求
 
   const load = (kw) => {
     if (!cookie?.trim() || !workspaceName?.trim()) {
       setOptions([]);
+      fullOptions.current = [];
       return;
     }
     const seq = ++latest.current;
@@ -40,7 +42,9 @@ export default function SprintSelect({
         if (seq !== latest.current) return;
         let list = Array.isArray(res?.data) ? res.data : [];
         if (onlyCurrent && preferredSprint) list = sortSprintsWithPreferred(list, preferredSprint);
-        setOptions(list.map((s) => ({ value: s.object_id, label: s.name })));
+        const opts = list.map((s) => ({ value: s.object_id, label: s.name }));
+        if (!kw.trim()) fullOptions.current = opts; // 仅全量结果进缓存
+        setOptions(opts);
       })
       .catch(() => {
         if (seq === latest.current) setOptions([]);
@@ -65,18 +69,23 @@ export default function SprintSelect({
   const handleSearch = (input) => {
     setSearchValue(input);
     if (onlyCurrent) return; // 当前空间模式用本地 label 过滤，无需服务端搜索
-    keyword.current = input;
     if (timer.current) clearTimeout(timer.current);
+    if (!input.trim()) {
+      // 清空搜索框（含展开时重置）→ 用缓存恢复全量，不再请求
+      setOptions(fullOptions.current);
+      return;
+    }
+    keyword.current = input;
     timer.current = setTimeout(() => load(input.trim()), 300);
   };
 
-  // 每次展开都重置搜索关键字/输入框并重新拉取，保证下拉里是最新全量
+  // 展开时重置搜索框并用缓存恢复全量，避免重复请求，也不残留上次搜索结果
   const handleOpenChange = (open) => {
     if (!open) return;
     keyword.current = '';
     setSearchValue('');
     if (timer.current) clearTimeout(timer.current);
-    load('');
+    setOptions(fullOptions.current);
   };
 
   // 勾选框放进下拉浮层顶部；阻止 mousedown 默认行为，避免点击时收起下拉

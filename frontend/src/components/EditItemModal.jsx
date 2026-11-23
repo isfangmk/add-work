@@ -8,7 +8,7 @@ import { buildWorkspaceOptions } from '../utils/workspaceOptions';
 
 export default function EditItemModal({ open, item, cookie, favorites, onClose, onSubmit }) {
   const [form] = Form.useForm();
-  const workspaces = useWorkspaces(cookie);
+  const workspaces = useWorkspaces(cookie, open);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
