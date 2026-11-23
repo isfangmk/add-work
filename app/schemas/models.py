@@ -14,6 +14,23 @@ class LLMSummaryRequest(BaseModel):
     excludeDates: Optional[List[str]] = Field(default_factory=list)
 
 
+class WorkspaceListRequest(BaseModel):
+    cookie: str
+
+
+class FavoriteWorkspaceItem(BaseModel):
+    workspace_key: str
+    workspace_name: str
+
+
+class UserRequest(BaseModel):
+    username: str = Field(..., min_length=1)
+
+
+class FavoriteWorkspacesRequest(UserRequest):
+    workspaces: List[FavoriteWorkspaceItem] = Field(default_factory=list)
+
+
 class SprintListRequest(BaseModel):
     cookie: str
     workspace_name: str

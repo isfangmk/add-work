@@ -3,21 +3,27 @@
 from app.schemas.models import (
     ApiResponse,
     CurrentUserRequest,
+    FavoriteWorkspacesRequest,
     FeedbackRequest,
     LLMSummaryRequest,
     SprintListRequest,
     StartTaskRequest,
     TaskStatusResponse,
+    UserRequest,
     WorkItemsRequest,
+    WorkspaceListRequest,
 )
 
 __all__ = [
     "ApiResponse",
     "CurrentUserRequest",
+    "FavoriteWorkspacesRequest",
     "FeedbackRequest",
     "LLMSummaryRequest",
     "SprintListRequest",
     "StartTaskRequest",
     "TaskStatusResponse",
+    "UserRequest",
     "WorkItemsRequest",
+    "WorkspaceListRequest",
 ]

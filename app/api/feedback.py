@@ -5,10 +5,10 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
-from app.storage.db import save_feedback
 from app.core.exceptions import ValidationAppError
 from app.core.logger import get_logger
 from app.schemas import ApiResponse, FeedbackRequest
+from app.storage.db import save_feedback
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -35,7 +35,5 @@ async def submit_feedback(request: FeedbackRequest) -> JSONResponse:
         request.contact,
     )
     return JSONResponse(
-        ApiResponse.ok(
-            data={"id": feedback_id}, msg="反馈已提交，感谢你的建议"
-        ).model_dump()
+        ApiResponse.ok(data={"id": feedback_id}, msg="反馈已提交，感谢你的建议").model_dump()
     )

@@ -12,12 +12,14 @@ import {
 import { MinusOutlined, PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { fetchSprints, fetchWorkspaces } from '../api';
+import { orderWorkspacesByFavorites } from '../utils/workspaces';
 
 export default function WorkItemForm({
   workItems,
   sourceItem,
   cookie,
   username,
+  favorites,
   taskRunning,
   aiWriting,
   onAdd,
@@ -45,9 +47,13 @@ export default function WorkItemForm({
 
   useEffect(() => {
     let cancelled = false;
+    if (!cookie?.trim()) {
+      setWorkspaces([]);
+      return undefined;
+    }
     (async () => {
       try {
-        const data = await fetchWorkspaces();
+        const data = await fetchWorkspaces(cookie);
         if (cancelled || !data.success) return;
         setWorkspaces(data.data || []);
       } catch (err) {
@@ -58,7 +64,7 @@ export default function WorkItemForm({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [cookie]);
 
   useEffect(() => {
     let cancelled = false;
@@ -127,9 +133,15 @@ export default function WorkItemForm({
     onSubmit();
   };
 
-  const workspaceOptions = workspaces.map((ws) => ({
+  const workspaceOptions = orderWorkspacesByFavorites(workspaces, favorites).map((ws) => ({
     value: ws.workspace_name,
-    label: ws.workspace_name
+    label: ws.isFavorite ? (
+      <span>
+        <span style={{ color: '#f5a623' }}>★</span> {ws.workspace_name}
+      </span>
+    ) : (
+      ws.workspace_name
+    )
   }));
 
   return (

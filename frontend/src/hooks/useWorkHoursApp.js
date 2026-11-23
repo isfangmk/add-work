@@ -2,9 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { App } from 'antd';
 import {
   fetchCurrentUser,
+  fetchFavoriteWorkspaces,
   fetchLlmSummary,
   fetchWorkItems,
   pollTaskStatus,
+  saveFavoriteWorkspaces,
   startTask
 } from '../api';
 import { formatDate, getWeekRange, isInCurrentWeek, isWeekend } from '../utils/date';
@@ -46,6 +48,8 @@ export function useWorkHoursApp() {
   const [autoSelected, setAutoSelected] = useState(false);
   const [workItems, setWorkItems] = useState([{ ...EMPTY_ITEM }]);
   const [editOpen, setEditOpen] = useState(false);
+  const [favoriteOpen, setFavoriteOpen] = useState(false);
+  const [favorites, setFavorites] = useState([]);
   const [taskLog, setTaskLog] = useState([]);
   const [taskRunning, setTaskRunning] = useState(false);
   const [aiWriting, setAiWriting] = useState(false);
@@ -105,6 +109,27 @@ export function useWorkHoursApp() {
     },
     [cookie, weekRange.monday, weekRange.sunday, username, gitEmail]
   );
+
+  // username 确定后加载关注空间
+  useEffect(() => {
+    if (!username) {
+      setFavorites([]);
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await fetchFavoriteWorkspaces(username);
+        if (cancelled || !data.success) return;
+        setFavorites(data.data || []);
+      } catch {
+        if (!cancelled) setFavorites([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [username]);
 
   useEffect(() => {
     if (!cookie.trim()) return undefined;
@@ -349,6 +374,32 @@ export function useWorkHoursApp() {
     }
   }, [cookie, username, gitEmail, weekOffset, filledDates, sourceItem, message]);
 
+  const saveFavorites = useCallback(
+    async (next) => {
+      if (!username) {
+        message.warning('请先等待登录完成');
+        return;
+      }
+      try {
+        const data = await saveFavoriteWorkspaces(username, next);
+        if (!data.success) {
+          message.error(data.msg || '保存关注空间失败');
+          return;
+        }
+        setFavorites(next);
+        setFavoriteOpen(false);
+        message.success('关注空间已保存');
+        // 刷新日历以反映新的关注范围（清空源事项避免选到已不在范围内的空间）
+        setSourceItem(null);
+        setAutoSelected(false);
+        if (cookie.trim()) loadWeek(username, gitEmail);
+      } catch (err) {
+        message.error(`保存失败：${err.message}`);
+      }
+    },
+    [username, cookie, gitEmail, message, loadWeek]
+  );
+
   return {
     calendarRef,
     cookie,
@@ -366,6 +417,10 @@ export function useWorkHoursApp() {
     setWorkItems,
     editOpen,
     setEditOpen,
+    favoriteOpen,
+    setFavoriteOpen,
+    favorites,
+    saveFavorites,
     taskLog,
     taskRunning,
     aiWriting,

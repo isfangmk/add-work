@@ -21,14 +21,10 @@ class Settings:
             "OPENAI_BASE_URL", "https://ark.cn-beijing.volces.com/api/v3"
         )
     )
-    model: str = field(
-        default_factory=lambda: os.getenv("MODEL", "doubao-seed-1-6-251015")
-    )
+    model: str = field(default_factory=lambda: os.getenv("MODEL", "doubao-seed-1-6-251015"))
 
     base_url: str = "https://gitee.ibr.net.cn"
-    current_user_path: str = (
-        "/api/one/Bonree/rest/v1/companies/Bonree/users/current/center"
-    )
+    current_user_path: str = "/api/one/Bonree/rest/v1/companies/Bonree/users/current/center"
     parse_app_id: str = "Bonree"
 
     heartbeat_interval: int = 600
@@ -46,9 +42,7 @@ class Settings:
     )
 
     path_prefix: str = "/add-work"
-    sqlite_web_password: str = field(
-        default_factory=lambda: os.getenv("SQLITE_WEB_PASSWORD", "")
-    )
+    sqlite_web_password: str = field(default_factory=lambda: os.getenv("SQLITE_WEB_PASSWORD", ""))
     mcp_token: str = field(default_factory=lambda: os.getenv("MCP_TOKEN", ""))
     add_work_url: str = field(default_factory=lambda: os.getenv("ADD_WORK_URL", ""))
 

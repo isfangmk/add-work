@@ -7,9 +7,14 @@ import asyncio
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
+from app.clients import gitee
 from app.core.config import settings
-from app.storage.db import get_workspace_configs
-from app.core.exceptions import TaskNotFoundError, ValidationAppError, WorkspaceNotFoundError
+from app.core.exceptions import (
+    AuthAppError,
+    TaskNotFoundError,
+    ValidationAppError,
+    WorkspaceNotFoundError,
+)
 from app.core.logger import get_logger
 from app.schemas import ApiResponse, StartTaskRequest, TaskStatusResponse
 from app.services.work import run_work_task
@@ -26,9 +31,12 @@ async def start_task(request: StartTaskRequest) -> JSONResponse:
             raise ValidationAppError("名称、工时、日期、迭代、工作空间列表长度不一致")
 
         workspace_names = request.resolved_workspace_names()
-        configs = get_workspace_configs()
+        workspaces = await gitee.list_workspaces(settings.build_headers(request.cookie))
+        if workspaces is None:
+            raise AuthAppError("获取工作空间列表失败，请检查Cookie是否有效")
+        known_names = {w["workspace_name"] for w in workspaces}
         for name in workspace_names:
-            if name not in configs:
+            if name not in known_names:
                 raise WorkspaceNotFoundError(name)
 
         task_id = new_task_id()
@@ -49,9 +57,7 @@ async def start_task(request: StartTaskRequest) -> JSONResponse:
                 is_update=request.is_update,
             )
         )
-        return JSONResponse(
-            ApiResponse.ok(data={"taskId": task_id}, msg="任务已启动").model_dump()
-        )
+        return JSONResponse(ApiResponse.ok(data={"taskId": task_id}, msg="任务已启动").model_dump())
     except (ValidationAppError, WorkspaceNotFoundError):
         raise
     except Exception as exc:

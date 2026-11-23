@@ -19,21 +19,25 @@ load_dotenv()
 from app.clients import gitee  # noqa: E402
 from app.clients.llm import summarize_commits as llm_summarize_commits  # noqa: E402
 from app.core.config import settings  # noqa: E402
-from app.storage.db import get_cookie_record, get_cookie_record_by_real_name, get_workspace_configs, update_cookie_real_name  # noqa: E402
 from app.core.logger import get_logger  # noqa: E402
 from app.services.work import (  # noqa: E402
     load_calendar_items,
     resolve_current_user,
     run_work_task,
 )
+from app.storage.db import (  # noqa: E402
+    get_cookie_record,
+    get_cookie_record_by_real_name,
+    get_favorite_workspaces,
+    replace_favorite_workspaces,
+    update_cookie_real_name,
+)
 from app.storage.task_store import copy_logs, get_task, init_task, new_task_id  # noqa: E402
 
 logger = get_logger(__name__)
 _TZ = ZoneInfo("Asia/Shanghai")
 
-_ACCOUNT_DESC = (
-    "Gitee 用户名，如 fangmingkun。由 whoami 返回，禁止编造或使用他人账号"
-)
+_ACCOUNT_DESC = "Gitee 用户名，如 fangmingkun。由 whoami 返回，禁止编造或使用他人账号"
 _GITEE_LOGIN_URL = "https://gitee.ibr.net.cn/"
 
 mcp = FastMCP(
@@ -160,6 +164,14 @@ async def _require_user(account: str) -> Tuple[Optional[Dict[str, Any]], str, st
     return None, cookie, username, git_email or ""
 
 
+async def _workspace_keys(cookie: str) -> Optional[Dict[str, str]]:
+    """拉取 {workspace_name: workspace_key}，失败返回 None。"""
+    workspaces = await gitee.list_workspaces(settings.build_headers(cookie))
+    if workspaces is None:
+        return None
+    return {w["workspace_name"]: w["workspace_key"] for w in workspaces}
+
+
 def _week_range(offset: int = 0) -> Tuple[date, date, str]:
     today = datetime.now(_TZ).date()
     monday = today - timedelta(days=today.weekday()) + timedelta(weeks=offset)
@@ -243,8 +255,7 @@ async def whoami(
         Optional[str],
         Field(
             description=(
-                "可选。Gitee 的 PRE-GW-SESSION Cookie 值，"
-                "类似 17eca8db2ef64b54a9f1b753919fb1d6"
+                "可选。Gitee 的 PRE-GW-SESSION Cookie 值，类似 17eca8db2ef64b54a9f1b753919fb1d6"
             )
         ),
     ] = None,
@@ -326,18 +337,94 @@ async def get_calendar(
 
 
 @mcp.tool
-async def list_workspaces() -> Dict[str, Any]:
-    """列出可选工作空间名称（与网页下拉一致）。create_from_source 默认用源事项空间，换空间时从本列表选。"""
-    configs = get_workspace_configs()
+async def list_workspaces(
+    account: Annotated[str, Field(description=_ACCOUNT_DESC)],
+) -> Dict[str, Any]:
+    """列出当前账号可选的工作空间（与网页下拉一致）。create_from_source 默认用源事项空间，换空间时从本列表选。"""
+    err, cookie, _user, _email = await _require_user(account)
+    if err:
+        return err
+    headers = settings.build_headers(cookie)
+    workspaces = await gitee.list_workspaces(headers)
+    if workspaces is None:
+        return _fail(_gitee_cookie_guide("获取工作空间列表失败，"))
+    details = await gitee.resolve_workspace_details(
+        headers, [w["workspace_key"] for w in workspaces]
+    )
+    fav_keys = {f["workspace_key"] for f in get_favorite_workspaces(_user)}
     data = [
         {
-            "workspace_name": name,
-            "workspace_id": cfg["workspace_id"],
-            "workspace_key": cfg["workspace_key"],
+            "workspace_name": w["workspace_name"],
+            "workspace_id": details.get(w["workspace_key"], {}).get("workspace_id", ""),
+            "workspace_key": w["workspace_key"],
+            "isFavorite": w["workspace_key"] in fav_keys,
         }
-        for name, cfg in configs.items()
+        for w in workspaces
     ]
     return _ok(data)
+
+
+@mcp.tool
+async def manage_favorite_workspaces(
+    account: Annotated[str, Field(description=_ACCOUNT_DESC)],
+    action: Annotated[
+        str, Field(description="操作：list 列出 / add 添加 / remove 移除 / set 覆盖设置")
+    ],
+    workspace_key: Annotated[
+        Optional[str], Field(description="空间 key，如 09；add/remove 时必填")
+    ] = None,
+    workspace_name: Annotated[
+        Optional[str], Field(description="空间名称，如 One-RUM；add 时必填")
+    ] = None,
+    workspace_keys: Annotated[
+        Optional[List[str]], Field(description="set 时的 key 列表（需先从 list_workspaces 取）")
+    ] = None,
+) -> Dict[str, Any]:
+    """管理当前账号的「关注空间」（日历只从关注空间读取工时）。"""
+    err, cookie, user, _email = await _require_user(account)
+    if err:
+        return err
+
+    favorites = get_favorite_workspaces(user)
+    if action == "list":
+        return _ok(favorites)
+
+    if action == "set":
+        # 按给定 key 列表从全量空间里解析名称
+        workspaces = await gitee.list_workspaces(settings.build_headers(cookie))
+        if workspaces is None:
+            return _fail(_gitee_cookie_guide("获取工作空间列表失败，"))
+        name_by_key = {w["workspace_key"]: w["workspace_name"] for w in workspaces}
+        keys = workspace_keys or []
+        new_favorites = [
+            {"workspace_key": k, "workspace_name": name_by_key[k]} for k in keys if k in name_by_key
+        ]
+        replace_favorite_workspaces(user, new_favorites)
+        return _ok(new_favorites, msg="关注空间已设置")
+
+    if action in ("add", "remove"):
+        if not workspace_key:
+            return _fail("缺少 workspace_key，请先调用 list_workspaces 获取")
+        current = {f["workspace_key"]: f for f in favorites}
+        if action == "add":
+            if not workspace_name:
+                # 尝试从全量空间解析名称
+                workspaces = await gitee.list_workspaces(settings.build_headers(cookie))
+                name_by_key = {w["workspace_key"]: w["workspace_name"] for w in (workspaces or [])}
+                workspace_name = name_by_key.get(workspace_key, "")
+            if not workspace_name:
+                return _fail("缺少 workspace_name，添加时必须提供空间名称")
+            current[workspace_key] = {
+                "workspace_key": workspace_key,
+                "workspace_name": workspace_name,
+            }
+        else:
+            current.pop(workspace_key, None)
+        new_favorites = list(current.values())
+        replace_favorite_workspaces(user, new_favorites)
+        return _ok(new_favorites, msg="关注空间已更新")
+
+    return _fail(f"不支持的操作：{action}")
 
 
 @mcp.tool
@@ -354,16 +441,18 @@ async def list_sprints(
     ],
 ) -> Dict[str, Any]:
     """列出指定工作空间的未完成迭代。"""
-    workspace = get_workspace_configs().get(workspace_name)
-    if not workspace:
-        return _fail(f"工作空间 '{workspace_name}' 不存在")
     err, cookie, _user, _email = await _require_user(account)
     if err:
         return err
+    workspace_keys = await _workspace_keys(cookie)
+    if workspace_keys is None:
+        return _fail(_gitee_cookie_guide("获取工作空间列表失败，"))
+    workspace_key = workspace_keys.get(workspace_name)
+    if workspace_key is None:
+        return _fail(f"工作空间 '{workspace_name}' 不存在")
     sprints = await gitee.list_sprints(
         settings.build_headers(cookie),
-        workspace["workspace_key"],
-        workspace["workspace_id"],
+        workspace_key,
     )
     if sprints is None:
         return _fail(_gitee_cookie_guide("获取迭代列表失败，"))
@@ -383,19 +472,14 @@ async def suggest_titles(
         return err
     if not git_email:
         return _fail("当前用户没有 gitEmail，无法拉取提交")
-    raw = await llm_summarize_commits(
-        git_email, start_date, end_date, exclude_dates or []
-    )
+    raw = await llm_summarize_commits(git_email, start_date, end_date, exclude_dates or [])
     if not raw:
         return _ok({}, msg="该日期范围内没有可用的 Git 提交记录")
     try:
         summary = json.loads(raw)
     except json.JSONDecodeError:
         return _fail("LLM 返回的 JSON 无效")
-    cleaned = {
-        k: (v[0] if isinstance(v, list) and v else str(v))
-        for k, v in summary.items()
-    }
+    cleaned = {k: (v[0] if isinstance(v, list) and v else str(v)) for k, v in summary.items()}
     if not cleaned:
         return _ok({}, msg="该日期范围内没有可用的 Git 提交记录")
     return _ok(cleaned)
@@ -406,7 +490,9 @@ async def create_from_source(
     account: Annotated[str, Field(description=_ACCOUNT_DESC)],
     source_object_id: Annotated[
         str,
-        Field(description="源事项 ID。从 get_calendar 的 recommended_source.object_id 或 days 里某条 object_id 拷贝"),
+        Field(
+            description="源事项 ID。从 get_calendar 的 recommended_source.object_id 或 days 里某条 object_id 拷贝"
+        ),
     ],
     workspace_name: Annotated[
         str,
@@ -436,7 +522,9 @@ async def create_from_source(
     ],
     sprint_ids: Annotated[
         List[str],
-        Field(description="各事项迭代 ID，与 names 一一对应。从 recommended_source.sprint_id 或 list_sprints 拷贝"),
+        Field(
+            description="各事项迭代 ID，与 names 一一对应。从 recommended_source.sprint_id 或 list_sprints 拷贝"
+        ),
     ],
     workspace_names: Annotated[
         Optional[List[str]],
@@ -464,12 +552,6 @@ async def create_from_source(
         (w or "").strip() or default_ws
         for w in (workspace_names if workspace_names is not None else [default_ws] * len(names))
     ]
-    configs = get_workspace_configs()
-    for ws in resolved_workspaces:
-        if not ws:
-            return _fail("缺少工作空间：请传 workspace_name 或 workspace_names")
-        if ws not in configs:
-            return _fail(f"工作空间 '{ws}' 不存在，请先调用 list_workspaces")
 
     clean_names = [n.strip() for n in names]
     clean_dates = [d.strip() for d in dates]
@@ -482,6 +564,15 @@ async def create_from_source(
     err, cookie, username, _email = await _require_user(account)
     if err:
         return err
+    workspace_keys = await _workspace_keys(cookie)
+    if workspace_keys is None:
+        return _fail(_gitee_cookie_guide("获取工作空间列表失败，"))
+    for ws in resolved_workspaces:
+        if not ws:
+            return _fail("缺少工作空间：请传 workspace_name 或 workspace_names")
+        if ws not in workspace_keys:
+            return _fail(f"工作空间 '{ws}' 不存在，请先调用 list_workspaces")
+
     return await _run_task(
         username,
         cookie,
@@ -510,8 +601,6 @@ async def update_item(
 ) -> Dict[str, Any]:
     """更新已有工时事项，不克隆。"""
     ws = (workspace_name or "").strip()
-    if ws not in get_workspace_configs():
-        return _fail(f"工作空间 '{ws}' 不存在，请先调用 list_workspaces")
     if hours <= 0:
         return _fail("工时须为大于 0 的数字")
     if not (object_id and name.strip() and date.strip()):
@@ -522,6 +611,11 @@ async def update_item(
     err, cookie, username, _email = await _require_user(account)
     if err:
         return err
+    workspace_keys = await _workspace_keys(cookie)
+    if workspace_keys is None:
+        return _fail(_gitee_cookie_guide("获取工作空间列表失败，"))
+    if ws not in workspace_keys:
+        return _fail(f"工作空间 '{ws}' 不存在，请先调用 list_workspaces")
     return await _run_task(
         username,
         cookie,

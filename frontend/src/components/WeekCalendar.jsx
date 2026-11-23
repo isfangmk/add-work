@@ -21,7 +21,9 @@ const WeekCalendar = forwardRef(function WeekCalendar(
     onSelect,
     onEdit,
     loading,
-    error
+    error,
+    favorites,
+    onOpenFavorites
   },
   ref
 ) {
@@ -48,6 +50,55 @@ const WeekCalendar = forwardRef(function WeekCalendar(
       )}
       {error && (
         <Alert type="error" showIcon message={error} style={{ marginBottom: 12 }} />
+      )}
+
+      {!loading && Array.isArray(favorites) && favorites.length === 0 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            padding: '18px 20px',
+            border: '1px dashed #c8e6d0',
+            borderRadius: 10,
+            background: '#fff',
+            marginBottom: 12,
+          }}
+        >
+          <div
+            style={{
+              flex: '0 0 auto',
+              width: 42,
+              height: 42,
+              borderRadius: 10,
+              background: '#edf9f2',
+              color: '#27ae60',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 22,
+            }}
+          >
+            ★
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 3 }}>还没有关注的空间</div>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              日历需要知道从哪些空间读取工时。
+              <button
+                type="button"
+                onClick={onOpenFavorites}
+                className="inline-text-link"
+              >
+                点此添加关注空间
+              </button>
+              。
+            </Typography.Text>
+          </div>
+          <Button onClick={onOpenFavorites} style={{ borderColor: '#27ae60', color: '#1e8449' }}>
+            ＋ 添加关注空间
+          </Button>
+        </div>
       )}
 
       <div className="week-scroll" ref={scroller}>

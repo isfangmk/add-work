@@ -10,6 +10,7 @@ import AppHeader from './components/AppHeader';
 import AppFooter from './components/AppFooter';
 import Section from './components/Section';
 import CookiePanel from './components/CookiePanel';
+import FavoriteSpacesModal from './components/FavoriteSpacesModal';
 import WelcomePromoModal from './components/WelcomePromoModal';
 
 export default function App() {
@@ -58,6 +59,15 @@ export default function App() {
                 />
               </Space>
             }
+            extraDescription={
+              <button
+                type="button"
+                className="favorite-link"
+                onClick={() => app.setFavoriteOpen(true)}
+              >
+                ★ 关注空间 · {app.favorites.length}
+              </button>
+            }
           >
             <WeekCalendar
               ref={app.calendarRef}
@@ -71,6 +81,8 @@ export default function App() {
               }}
               loading={app.loading}
               error={app.error}
+              favorites={app.favorites}
+              onOpenFavorites={() => app.setFavoriteOpen(true)}
             />
           </Section>
 
@@ -84,6 +96,7 @@ export default function App() {
               sourceItem={app.sourceItem}
               cookie={app.cookie}
               username={app.username}
+              favorites={app.favorites}
               taskRunning={app.taskRunning}
               aiWriting={app.aiWriting}
               onAdd={app.addItem}
@@ -107,8 +120,18 @@ export default function App() {
           open={app.editOpen}
           item={app.sourceItem}
           cookie={app.cookie}
+          favorites={app.favorites}
           onClose={() => app.setEditOpen(false)}
           onSubmit={app.submitUpdate}
+        />
+
+        <FavoriteSpacesModal
+          open={app.favoriteOpen}
+          username={app.username}
+          cookie={app.cookie}
+          favorites={app.favorites}
+          onClose={() => app.setFavoriteOpen(false)}
+          onSave={app.saveFavorites}
         />
 
         <AppFooter username={app.username} />

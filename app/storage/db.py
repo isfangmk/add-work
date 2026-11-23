@@ -14,58 +14,6 @@ from app.core.logger import get_logger
 logger = get_logger(__name__)
 _TZ = ZoneInfo("Asia/Shanghai")
 
-_DEFAULT_WORKSPACES = [
-    (
-        "One-RUM",
-        "VTuM6B3VeK",
-        "09",
-        "https://gitee.ibr.net.cn/Bonree/09/proxima/boards/8a4e4d4b-16f6-44f0-9b30-2c730476572b"
-        "?component=Default&view=SVUXTVgxyp&iql=[iql]&pageIndex=1",
-    ),
-    (
-        "One-APM",
-        "PGQM3VhDkR",
-        "17",
-        "https://gitee.ibr.net.cn/Bonree/17/proxima/boards/60c254c3-4c55-46e7-8a91-914a5f5e01ef"
-        "?component=Default&view=ljxigMMXTf&iql=[iql]&pageIndex=1",
-    ),
-    (
-        "ONE-Meta",
-        "xSSuAXE4X1",
-        "16",
-        "https://gitee.ibr.net.cn/Bonree/16/proxima/boards/f9d84977-8ee2-4861-aac0-38636f91fcae"
-        "?component=Default&view=ynbkqxvVSi&iql=[iql]&pageIndex=1",
-    ),
-    (
-        "Bonree-Swift-Ai",
-        "SyxVCy6BOs",
-        "04",
-        "https://gitee.ibr.net.cn/Bonree/04/proxima/boards/13b31fcd-522d-4456-a5df-58cbb81c3008"
-        "?component=Default&view=2dlBslHno0&iql=[iql]&pageIndex=1",
-    ),
-    (
-        "One-ETL",
-        "AU0gz8Tk2I",
-        "14",
-        "https://gitee.ibr.net.cn/Bonree/14/proxima/boards/266e7185-e099-44bc-b8a5-be7387099208"
-        "?component=Default&view=0fjzzdbjX6&iql=[iql]&pageIndex=1",
-    ),
-    (
-        "One-Pilot",
-        "pgH5HDXgly",
-        "12",
-        "https://gitee.ibr.net.cn/Bonree/12/proxima/boards/9d719236-9dfc-46de-9de8-5b5cec7c6b7d"
-        "?component=Default&view=Kbk9CUJRAE&iql=[iql]&pageIndex=1",
-    ),
-    (
-        "ONE-Data",
-        "5QMvUzUQHz",
-        "02",
-        "https://gitee.ibr.net.cn/Bonree/02/proxima/boards/c91bcf05-0496-4b8f-a39d-86ec8ee8eb99"
-        "?component=Default&view=0lx1Sq7UAw&iql=[iql]&pageIndex=1",
-    ),
-]
-
 
 def _now() -> str:
     return datetime.now(_TZ).strftime("%Y-%m-%d %H:%M:%S")
@@ -97,14 +45,6 @@ def init_db() -> None:
                 real_name TEXT,
                 created_at TIMESTAMP NOT NULL
             );
-            CREATE TABLE IF NOT EXISTS workspace_configs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                workspace_name TEXT NOT NULL UNIQUE,
-                workspace_id TEXT NOT NULL,
-                workspace_key TEXT NOT NULL,
-                jump_url TEXT NOT NULL,
-                created_at TIMESTAMP NOT NULL
-            );
             CREATE TABLE IF NOT EXISTS feedback_records (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT,
@@ -112,17 +52,17 @@ def init_db() -> None:
                 content TEXT NOT NULL,
                 created_at TIMESTAMP NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS user_favorite_workspaces (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL,
+                workspace_key TEXT NOT NULL,
+                workspace_name TEXT NOT NULL,
+                created_at TIMESTAMP NOT NULL,
+                UNIQUE(username, workspace_key)
+            );
             """
         )
-        cur.execute("SELECT COUNT(*) FROM workspace_configs")
-        if cur.fetchone()[0] == 0:
-            logger.info("初始化默认 workspace 配置")
-            for row in _DEFAULT_WORKSPACES:
-                save_workspace_config(*row)
-        cols = {
-            row[1]
-            for row in cur.execute("PRAGMA table_info(cookie_records)").fetchall()
-        }
+        cols = {row[1] for row in cur.execute("PRAGMA table_info(cookie_records)").fetchall()}
         if "real_name" not in cols:
             logger.info("cookie_records 增加 real_name 列")
             cur.execute("ALTER TABLE cookie_records ADD COLUMN real_name TEXT")
@@ -158,9 +98,7 @@ def get_cookie_record_by_real_name(real_name: str) -> Optional[Tuple[str, str]]:
         return None
 
 
-def upsert_cookie_record(
-    username: str, cookie: str, real_name: Optional[str] = None
-) -> None:
+def upsert_cookie_record(username: str, cookie: str, real_name: Optional[str] = None) -> None:
     try:
         with _connect() as conn:
             row = conn.execute(
@@ -190,9 +128,7 @@ def upsert_cookie_record(
         logger.error("保存Cookie记录失败：%s", exc)
 
 
-def save_cookie_record(
-    username: str, cookie: str, real_name: Optional[str] = None
-) -> None:
+def save_cookie_record(username: str, cookie: str, real_name: Optional[str] = None) -> None:
     upsert_cookie_record(username, cookie, real_name)
 
 
@@ -260,58 +196,60 @@ def save_task_record(
         logger.error("保存任务记录失败：%s", exc)
 
 
-def get_workspace_configs() -> Dict[str, Dict[str, str]]:
+def get_favorite_workspaces(username: str) -> List[Dict[str, str]]:
+    """获取用户关注的空间列表（无记录返回空列表）。"""
     try:
         with _connect() as conn:
             rows = conn.execute(
-                "SELECT workspace_name, workspace_id, workspace_key, jump_url FROM workspace_configs"
+                "SELECT workspace_key, workspace_name FROM user_favorite_workspaces "
+                "WHERE username = ? ORDER BY id ASC",
+                (username,),
             ).fetchall()
-        return {
-            name: {
-                "workspace_id": wid,
-                "workspace_key": wkey,
-                "jump_url": jump,
-            }
-            for name, wid, wkey, jump in rows
-        }
+        return [{"workspace_key": key, "workspace_name": name} for key, name in rows]
     except Exception as exc:
-        logger.error("获取workspace配置失败：%s", exc)
-        return {}
+        logger.error("获取关注空间失败：%s", exc)
+        return []
 
 
-def get_workspace_key_by_name(workspace_name: str) -> Optional[str]:
+def replace_favorite_workspaces(username: str, workspaces: List[Dict[str, str]]) -> None:
+    """覆盖式保存用户关注的空间。"""
     try:
         with _connect() as conn:
-            row = conn.execute(
-                "SELECT workspace_key FROM workspace_configs WHERE workspace_name = ?",
-                (workspace_name,),
-            ).fetchone()
-        return row[0] if row else None
+            conn.execute("DELETE FROM user_favorite_workspaces WHERE username = ?", (username,))
+            for ws in workspaces:
+                key = (ws.get("workspace_key") or "").strip()
+                name = (ws.get("workspace_name") or "").strip()
+                if not key or not name:
+                    continue
+                conn.execute(
+                    "INSERT OR IGNORE INTO user_favorite_workspaces "
+                    "(username, workspace_key, workspace_name, created_at) "
+                    "VALUES (?, ?, ?, ?)",
+                    (username, key, name, _now()),
+                )
+            conn.commit()
     except Exception as exc:
-        logger.error("获取workspace key失败：%s", exc)
-        return None
+        logger.error("保存关注空间失败：%s", exc)
 
 
-def save_workspace_config(
-    workspace_name: str,
-    workspace_id: str,
-    workspace_key: str,
-    jump_url: str,
-) -> bool:
+def add_favorite_workspace(username: str, workspace_key: str, workspace_name: str) -> bool:
+    """幂等追加一个关注空间，返回是否新增。"""
+    key = (workspace_key or "").strip()
+    name = (workspace_name or "").strip()
+    if not key or not name:
+        return False
     try:
         with _connect() as conn:
-            conn.execute(
-                """
-                INSERT OR REPLACE INTO workspace_configs
-                    (workspace_name, workspace_id, workspace_key, jump_url, created_at)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (workspace_name, workspace_id, workspace_key, jump_url, _now()),
+            cur = conn.execute(
+                "INSERT OR IGNORE INTO user_favorite_workspaces "
+                "(username, workspace_key, workspace_name, created_at) "
+                "VALUES (?, ?, ?, ?)",
+                (username, key, name, _now()),
             )
             conn.commit()
-        return True
+        return cur.rowcount > 0
     except Exception as exc:
-        logger.error("保存workspace配置失败：%s", exc)
+        logger.error("追加关注空间失败：%s", exc)
         return False
 
 

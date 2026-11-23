@@ -2,24 +2,52 @@
 
 from __future__ import annotations
 
+from typing import Any, Dict, List
+
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
 from app.clients import gitee
 from app.core.config import settings
-from app.storage.db import get_workspace_configs
 from app.core.exceptions import AuthAppError, WorkspaceNotFoundError
 from app.core.logger import get_logger
-from app.schemas import ApiResponse, SprintListRequest
+from app.schemas import (
+    ApiResponse,
+    FavoriteWorkspacesRequest,
+    SprintListRequest,
+    UserRequest,
+    WorkspaceListRequest,
+)
+from app.storage.db import get_favorite_workspaces, replace_favorite_workspaces
 
 logger = get_logger(__name__)
 router = APIRouter()
 
 
-@router.get("/get-workspace-list", response_model=ApiResponse)
-async def get_workspace_list() -> JSONResponse:
-    configs = get_workspace_configs()
-    data = [
+async def _workspace_map(
+    cookie: str,
+) -> Dict[str, Dict[str, str]]:
+    """按登录用户拉取工作空间，返回 {workspace_name: 配置}。"""
+    headers = settings.build_headers(cookie)
+    workspaces = await gitee.list_workspaces(headers)
+    if workspaces is None:
+        raise AuthAppError("获取工作空间列表失败，请检查Cookie是否有效")
+    details = await gitee.resolve_workspace_details(
+        headers, [w["workspace_key"] for w in workspaces]
+    )
+    return {
+        w["workspace_name"]: {
+            "workspace_id": details.get(w["workspace_key"], {}).get("workspace_id", ""),
+            "workspace_key": w["workspace_key"],
+        }
+        for w in workspaces
+    }
+
+
+@router.post("/get-workspace-list", response_model=ApiResponse)
+async def get_workspace_list(request: WorkspaceListRequest) -> JSONResponse:
+    configs = await _workspace_map(request.cookie)
+    data: List[Dict[str, Any]] = [
         {
             "workspace_name": name,
             "workspace_id": cfg["workspace_id"],
@@ -30,18 +58,37 @@ async def get_workspace_list() -> JSONResponse:
     return JSONResponse(ApiResponse.ok(data=data).model_dump())
 
 
+@router.post("/get-favorite-workspaces", response_model=ApiResponse)
+async def get_favorite_workspaces_api(request: UserRequest) -> JSONResponse:
+    data = get_favorite_workspaces(request.username)
+    return JSONResponse(ApiResponse.ok(data=data).model_dump())
+
+
+@router.post("/save-favorite-workspaces", response_model=ApiResponse)
+async def save_favorite_workspaces_api(request: FavoriteWorkspacesRequest) -> JSONResponse:
+    replace_favorite_workspaces(request.username, [ws.model_dump() for ws in request.workspaces])
+    return JSONResponse(ApiResponse.ok(msg="关注空间已保存").model_dump())
+
+
 @router.post("/get-sprint-list", response_model=ApiResponse)
 async def get_sprint_list(request: SprintListRequest) -> JSONResponse:
     try:
-        workspace = get_workspace_configs().get(request.workspace_name)
-        if not workspace:
+        headers = settings.build_headers(request.cookie)
+        workspaces = await gitee.list_workspaces(headers)
+        if workspaces is None:
+            raise AuthAppError("获取工作空间列表失败，请检查Cookie是否有效")
+        workspace_key = next(
+            (
+                w["workspace_key"]
+                for w in workspaces
+                if w["workspace_name"] == request.workspace_name
+            ),
+            None,
+        )
+        if workspace_key is None:
             raise WorkspaceNotFoundError(request.workspace_name)
 
-        sprints = await gitee.list_sprints(
-            settings.build_headers(request.cookie),
-            workspace["workspace_key"],
-            workspace["workspace_id"],
-        )
+        sprints = await gitee.list_sprints(headers, workspace_key)
         if sprints is None:
             raise AuthAppError("获取迭代列表失败，请检查Cookie是否有效")
         return JSONResponse(ApiResponse.ok(data=sprints).model_dump())

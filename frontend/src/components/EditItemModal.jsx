@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Alert, DatePicker, Form, Input, InputNumber, Modal, Select } from 'antd';
 import dayjs from 'dayjs';
 import { fetchSprints, fetchWorkspaces } from '../api';
+import { orderWorkspacesByFavorites } from '../utils/workspaces';
 
-export default function EditItemModal({ open, item, cookie, onClose, onSubmit }) {
+export default function EditItemModal({ open, item, cookie, favorites, onClose, onSubmit }) {
   const [form] = Form.useForm();
   const [workspaces, setWorkspaces] = useState([]);
   const [sprints, setSprints] = useState([]);
@@ -14,9 +15,13 @@ export default function EditItemModal({ open, item, cookie, onClose, onSubmit })
 
   useEffect(() => {
     let cancelled = false;
+    if (!cookie?.trim()) {
+      setWorkspaces([]);
+      return undefined;
+    }
     (async () => {
       try {
-        const data = await fetchWorkspaces();
+        const data = await fetchWorkspaces(cookie);
         if (cancelled || !data.success) return;
         setWorkspaces(data.data || []);
       } catch {
@@ -26,7 +31,7 @@ export default function EditItemModal({ open, item, cookie, onClose, onSubmit })
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [cookie]);
 
   useEffect(() => {
     if (!open || !item) return;
@@ -130,9 +135,15 @@ export default function EditItemModal({ open, item, cookie, onClose, onSubmit })
         >
           <Select
             placeholder="请选择工作空间"
-            options={workspaces.map((ws) => ({
+            options={orderWorkspacesByFavorites(workspaces, favorites).map((ws) => ({
               value: ws.workspace_name,
-              label: ws.workspace_name
+              label: ws.isFavorite ? (
+                <span>
+                  <span style={{ color: '#f5a623' }}>★</span> {ws.workspace_name}
+                </span>
+              ) : (
+                ws.workspace_name
+              )
             }))}
             onChange={handleWorkspaceChange}
           />

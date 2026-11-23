@@ -6,9 +6,9 @@ import asyncio
 from typing import Any, Dict, Optional
 
 from app.core.config import settings
-from app.storage.db import delete_cookie_record, get_all_cookie_records, update_cookie_real_name
 from app.core.http_client import http_client
 from app.core.logger import get_logger
+from app.storage.db import delete_cookie_record, get_all_cookie_records, update_cookie_real_name
 
 logger = get_logger(__name__)
 
@@ -26,9 +26,7 @@ async def _probe(cookie_str: str, *, in_loop: bool = False) -> Optional[str]:
             resp.raise_for_status()
             payload = resp.json().get("payload") or {}
             if "enterpriseCard" not in payload:
-                logger.error(
-                    "响应缺少 enterpriseCard (尝试 %s/%s)", attempt + 1, retries
-                )
+                logger.error("响应缺少 enterpriseCard (尝试 %s/%s)", attempt + 1, retries)
                 if attempt < retries - 1:
                     await asyncio.sleep(600)
                     continue

@@ -1,12 +1,17 @@
-export function formatDate(date) {
+export function formatDate(date: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
 }
 
-/** @returns {{ monday: Date, sunday: Date, weekLabel: string }} */
-export function getWeekRange(offset = 0) {
+export interface WeekRange {
+  monday: Date;
+  sunday: Date;
+  weekLabel: string;
+}
+
+export function getWeekRange(offset = 0): WeekRange {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -24,12 +29,12 @@ export function getWeekRange(offset = 0) {
   return { monday, sunday, weekLabel };
 }
 
-export function isWeekend(dateStr) {
+export function isWeekend(dateStr: string): boolean {
   const day = new Date(dateStr).getDay();
   return day === 0 || day === 6;
 }
 
-export function isInCurrentWeek(dateStr) {
+export function isInCurrentWeek(dateStr: string): boolean {
   const d = new Date(dateStr);
   const { monday, sunday } = getWeekRange(0);
   return d >= monday && d <= sunday;

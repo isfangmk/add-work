@@ -103,9 +103,9 @@ async def search_work_items(
                     "sprint": sprint["name"],
                     "sprint_id": sprint["objectId"],
                     "time": item["values"]["field019"],
-                    "date": datetime.fromtimestamp(
-                        item["values"]["Lkb66aTo"] / 1000, _TZ
-                    ).strftime("%Y-%m-%d"),
+                    "date": datetime.fromtimestamp(item["values"]["Lkb66aTo"] / 1000, _TZ).strftime(
+                        "%Y-%m-%d"
+                    ),
                     "workspace_name": workspace_name,
                 }
             )
@@ -115,10 +115,132 @@ async def search_work_items(
         return None
 
 
+def _jump_url(workspace_key: str, board_key: str, view_id: str) -> str:
+    return (
+        f"{settings.base_url}/{settings.parse_app_id}/{workspace_key}/proxima"
+        f"/boards/{board_key}?component=Default&view={view_id}&iql=[iql]&pageIndex=1"
+    )
+
+
+def _fallback_jump_url(workspace_key: str) -> str:
+    return f"{settings.base_url}/{settings.parse_app_id}/{workspace_key}/proxima/all/boards"
+
+
+async def list_workspaces(
+    headers: Dict[str, str],
+) -> Optional[List[Dict[str, str]]]:
+    """拉取当前用户可见的全部工作空间。"""
+    resp = None
+    try:
+        resp = await http_client.post(
+            f"{settings.base_url}/api/one/{settings.parse_app_id}/rest/v2"
+            f"/companies/{settings.parse_app_id}/projects/v2"
+            "?name=&tags=&_limit=100&_offset=0&view=CARD",
+            headers=headers,
+            json={"customs": []},
+        )
+        resp.raise_for_status()
+        return [
+            {"workspace_name": item["name"], "workspace_key": item["uuid"]}
+            for item in resp.json()
+            if item.get("name") and item.get("uuid")
+        ]
+    except Exception as exc:
+        logger.error(format_http_error("获取工作空间列表失败", exc, resp))
+        return None
+
+
+async def resolve_workspace_details(
+    headers: Dict[str, str],
+    workspace_keys: List[str],
+) -> Dict[str, Dict[str, str]]:
+    """按 workspace_key 批量解析 workspace_id 与 jump_url。
+
+    jump_url 取空间的 All items 看板默认视图拼模板，
+    解析不到看板时退化为空间看板列表页。
+    """
+    keys = list(dict.fromkeys(k for k in workspace_keys if k))
+    details: Dict[str, Dict[str, str]] = {
+        key: {"workspace_id": "", "jump_url": _fallback_jump_url(key)} for key in keys
+    }
+    if not keys:
+        return details
+    resp = None
+    try:
+        # Workspace 类反查 objectId（clone_item 需要）
+        resp = await http_client.post(
+            f"{settings.base_url}/api/team/parse/api/apps/schema/Workspace",
+            headers=headers,
+            json={"where": {"key": {"$in": keys}}, "limit": len(keys)},
+        )
+        resp.raise_for_status()
+        rows = resp.json().get("results", [])
+        oid_to_key = {row["objectId"]: row["key"] for row in rows}
+        for row in rows:
+            details[row["key"]]["workspace_id"] = row["objectId"]
+
+        # 各空间的 All items 看板
+        resp = await http_client.post(
+            f"{settings.base_url}/api/team/parse/api/apps/schema/Board",
+            headers=headers,
+            json={
+                "where": {
+                    "name": "All items",
+                    "workspace": {
+                        "$inQuery": {
+                            "where": {"key": {"$in": keys}},
+                            "className": "Workspace",
+                        }
+                    },
+                },
+                "include": "workspace",
+                "limit": len(keys),
+            },
+        )
+        resp.raise_for_status()
+        boards = resp.json().get("results", [])
+
+        # 看板的默认视图
+        view_ids = [view["objectId"] for board in boards for view in board.get("views", [])]
+        default_views: Dict[str, str] = {}
+        if view_ids:
+            resp = await http_client.post(
+                f"{settings.base_url}/api/team/parse/api/apps/schema/View",
+                headers=headers,
+                json={
+                    "where": {"key": "default", "objectId": {"$in": view_ids}},
+                    "limit": len(view_ids),
+                },
+            )
+            resp.raise_for_status()
+            default_views = {
+                view["objectId"]: view["objectId"] for view in resp.json().get("results", [])
+            }
+
+        for board in boards:
+            workspace_ref = board.get("workspace") or {}
+            key = workspace_ref.get("key") or oid_to_key.get(workspace_ref.get("objectId", ""), "")
+            if not key or key not in details:
+                continue
+            view_id = next(
+                (
+                    default_views[view["objectId"]]
+                    for view in board.get("views", [])
+                    if view.get("objectId") in default_views
+                ),
+                "",
+            )
+            if view_id:
+                details[key]["jump_url"] = _jump_url(key, board["key"], view_id)
+        return details
+    except Exception as exc:
+        logger.error(format_http_error("解析工作空间详情失败", exc, resp))
+        return details
+
+
 async def list_sprints(
     headers: Dict[str, str],
     workspace_key: str,
-    workspace_id: str,
 ) -> Optional[List[Dict[str, Any]]]:
     """拉取空间下未完成的迭代列表。"""
     resp = None
@@ -126,12 +248,7 @@ async def list_sprints(
         "where": {
             "workspace": {
                 "$inQuery": {
-                    "where": {
-                        "$or": [
-                            {"key": workspace_key},
-                            {"objectId": workspace_id},
-                        ]
-                    },
+                    "where": {"key": workspace_key},
                     "className": "Workspace",
                 }
             },
@@ -148,8 +265,7 @@ async def list_sprints(
         )
         resp.raise_for_status()
         return [
-            {"object_id": item["objectId"], "name": item["name"]}
-            for item in resp.json()["results"]
+            {"object_id": item["objectId"], "name": item["name"]} for item in resp.json()["results"]
         ]
     except Exception as exc:
         logger.error(format_http_error("获取迭代列表失败", exc, resp))
@@ -203,16 +319,14 @@ async def resolve_field_keys(
             headers=headers,
         )
         resp.raise_for_status()
-        field_map = {
-            f.get("name"): f.get("key") for f in resp.json().get("fields", [])
-        }
+        field_map = {f.get("name"): f.get("key") for f in resp.json().get("fields", [])}
         keys: List[str] = []
         for name in field_names:
             if name not in field_map:
                 missing = [n for n in field_names if n not in field_map]
                 raise ValueError(f"字段不存在：{name}（缺失：{set(missing)}）")
             keys.append(field_map[name])
-        append_log(task_id, f"✅ 获取字段key成功：{dict(zip(field_names, keys))}")
+        append_log(task_id, f"✅ 获取字段key成功：{dict(zip(field_names, keys, strict=True))}")
         return keys
     except Exception as exc:
         append_log(task_id, format_http_error("❌ 获取字段key失败", exc, resp))
@@ -263,7 +377,5 @@ async def update_item(
         append_log(task_id, msg)
         return True
     except Exception as exc:
-        append_log(
-            task_id, format_http_error(f"❌ 更新事项[{object_id}]失败", exc, resp)
-        )
+        append_log(task_id, format_http_error(f"❌ 更新事项[{object_id}]失败", exc, resp))
         return False

@@ -41,10 +41,7 @@ async def llm_summary_by_range(request: LLMSummaryRequest) -> JSONResponse:
             )
 
         summary = json.loads(raw)
-        cleaned = {
-            k: (v[0] if isinstance(v, list) and v else str(v))
-            for k, v in summary.items()
-        }
+        cleaned = {k: (v[0] if isinstance(v, list) and v else str(v)) for k, v in summary.items()}
         if not cleaned:
             return JSONResponse(
                 ApiResponse.ok(

@@ -15,7 +15,10 @@ from app.core.logger import get_logger
 logger = get_logger(__name__)
 
 _PER_PAGE = 100
-_HEADERS = lambda: {"PRIVATE-TOKEN": settings.private_token}
+
+
+def _HEADERS() -> Dict[str, str]:
+    return {"PRIVATE-TOKEN": settings.private_token}
 
 
 def _api(path: str) -> str:
@@ -100,9 +103,7 @@ async def _resolve_user_id(author: str) -> Optional[int]:
     return user_id
 
 
-async def _list_push_events(
-    user_id: int, start_date: str, end_date: str
-) -> List[Dict[str, Any]]:
+async def _list_push_events(user_id: int, start_date: str, end_date: str) -> List[Dict[str, Any]]:
     """拉取用户 pushed 事件。after/before 按日边界外扩一天，避免开区间漏边。"""
     start = date.fromisoformat(start_date)
     end = date.fromisoformat(end_date)
@@ -198,9 +199,7 @@ async def _commits_from_compare(
         day = (commit.get("authored_date") or commit.get("created_at") or "")[:10]
         if not _day_in_range(day, start_date, end_date):
             continue
-        item = _commit_item(
-            commit.get("title") or commit.get("message") or "", day
-        )
+        item = _commit_item(commit.get("title") or commit.get("message") or "", day)
         if item:
             result.append(item)
     logger.info(
@@ -280,10 +279,7 @@ async def fetch_commits(
 
     events = await _list_push_events(user_id, start_date, end_date)
     batches = await asyncio.gather(
-        *[
-            _commits_from_push_event(ev, author, start_date, end_date, allowed)
-            for ev in events
-        ]
+        *[_commits_from_push_event(ev, author, start_date, end_date, allowed) for ev in events]
     )
 
     # 按 subject+date 去重，保持稳定顺序

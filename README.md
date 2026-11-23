@@ -43,7 +43,13 @@ PRIVATE_TOKEN=your_gitlab_private_token_here
 
 ### 后端部署
 
-1. 安装 Python 依赖
+1. 安装 Python 依赖（推荐 uv，依赖由 `uv.lock` 锁定可复现）
+
+```bash
+uv sync
+```
+
+若不使用 uv，也可用 pip（依赖以 `pyproject.toml` 为准）：
 
 ```bash
 pip install -r requirements.txt
@@ -54,7 +60,7 @@ pip install -r requirements.txt
 3. 启动后端服务
 
 ```bash
-python main.py
+uv run python main.py
 ```
 
 服务将在 `http://127.0.0.1:5000` 启动
@@ -112,6 +118,32 @@ docker stop add_work
 docker rm add_work
 ```
 
+## 开发
+
+后端用 [uv](https://docs.astral.sh/uv/) 管理依赖，前端用 npm；`Makefile` 提供统一入口。
+
+```bash
+make install        # 后端 uv sync + 前端 npm install
+make lint           # 后端 ruff check + format --check，前端 tsc 类型检查
+make format         # ruff format 格式化后端代码
+make test           # 后端 pytest + 前端 tsc 类型检查
+make typecheck      # 仅前端 tsc --noEmit
+make build          # 前端 build + Docker 镜像构建
+```
+
+等价的原生命令：
+
+| 用途 | 命令 |
+|------|------|
+| 安装后端依赖 | `uv sync` |
+| 后端静态检查 | `uv run ruff check . && uv run ruff format --check .` |
+| 后端格式化 | `uv run ruff format .` |
+| 后端测试 | `uv run pytest -q` |
+| 前端类型检查 | `cd frontend && npm run typecheck` |
+| 前端构建 | `cd frontend && npm run build` |
+
+测试安全：pytest 会自动把数据库指向临时文件（`tests/conftest.py`），并通过兜底 fixture 禁止真实写入工时（`gitee.clone_item` / `gitee.update_item`）；搜索等只读查询不受影响。
+
 ## 功能特性
 
 - 📋 获取工作项列表和迭代列表
@@ -136,10 +168,14 @@ add-work/
 │   ├── services/       # 业务编排与 Cookie 保活
 │   └── storage/        # SQLite 与任务状态
 ├── frontend/
+├── tests/              # pytest 单元测试
 ├── main.py
 ├── Dockerfile
 ├── entrypoint.sh
-└── requirements.txt
+├── pyproject.toml      # 后端依赖 + ruff/pytest 配置
+├── uv.lock             # 依赖锁定文件
+├── Makefile            # 统一命令入口
+└── requirements.txt    # pip 兼容用（权威依赖见 pyproject.toml）
 ```
 
 ## 端口说明

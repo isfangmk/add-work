@@ -21,9 +21,7 @@ async def get_current_user(request: CurrentUserRequest) -> JSONResponse:
         if not username:
             raise AuthAppError("检查复制Cookie是否完整或已过期")
         return JSONResponse(
-            ApiResponse.ok(
-                data={"username": username, "gitEmail": git_email or ""}
-            ).model_dump()
+            ApiResponse.ok(data={"username": username, "gitEmail": git_email or ""}).model_dump()
         )
     except AuthAppError:
         raise

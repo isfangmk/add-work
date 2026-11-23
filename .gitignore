@@ -5,3 +5,7 @@
 *.pyc
 __pycache__
 .env
+.zcode/
+.venv/
+.pytest_cache/
+.ruff_cache/
