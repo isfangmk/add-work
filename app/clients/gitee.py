@@ -203,12 +203,14 @@ async def search_requirements(
     """
     resp = None
     try:
-        kw = (keyword or "").strip().replace("'", "\\'").replace('"', '\\"')
+        # IQL 字符串字面量用双引号包裹：单引号/空格/反斜杠可原样出现；
+        # 双引号是分隔符且无法转义，直接剔除，避免构造出非法 IQL 导致 400。
+        kw = (keyword or "").strip().replace('"', "")
         spaces = ",".join(f'"{name}"' for name in settings.requirement_workspaces)
         iql = (
             f"('所属空间' in [{spaces}] "
             "and '类型' in [\"需求\"] "
-            f"and ('标题' ~ '{kw}' or key = '{kw}')) order by  创建时间 desc"
+            f'and (\'标题\' ~ "{kw}" or key = "{kw}")) order by  创建时间 desc'
         )
         body = {
             "iql": iql,

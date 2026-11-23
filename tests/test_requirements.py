@@ -103,8 +103,8 @@ async def test_search_requirements_url_and_body(monkeypatch):
     assert captured["url"].endswith("/api/team/parse/api/search?from=DataQuote01")
     assert all(name in captured["body"]["iql"] for name in settings.requirement_workspaces)
     assert "需求" in captured["body"]["iql"]
-    assert "'标题' ~ '工作流'" in captured["body"]["iql"]
-    assert "key = '工作流'" in captured["body"]["iql"]
+    assert "'标题' ~ \"工作流\"" in captured["body"]["iql"]
+    assert 'key = "工作流"' in captured["body"]["iql"]
     assert captured["body"]["size"] == 10
     assert captured["body"]["fromField"] == "DataQuote01"
     assert captured["body"]["refererInfo"]["workspaceId"] == settings.requirement_workspace_id
@@ -115,8 +115,8 @@ async def test_search_requirements_url_and_body(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_search_requirements_escapes_keyword(monkeypatch):
-    """关键字中的引号被转义，避免破坏 IQL。"""
+async def test_search_requirements_sanitizes_keyword(monkeypatch):
+    """关键字用双引号包裹，单引号保留、双引号剔除，避免破坏 IQL。"""
     captured = {}
 
     async def fake_post(url, headers=None, json=None):
@@ -125,7 +125,7 @@ async def test_search_requirements_escapes_keyword(monkeypatch):
 
     monkeypatch.setattr(http_client, "post", fake_post)
     await gitee.search_requirements({}, keyword="a'b\"c")
-    assert "a\\'b\\\"c" in captured["iql"]
+    assert "'标题' ~ \"a'bc\"" in captured["iql"]
 
 
 @pytest.mark.asyncio
