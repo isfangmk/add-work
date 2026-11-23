@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button, Checkbox, Empty, Input, List, Modal, Space, Typography } from 'antd';
 import { StarFilled } from '@ant-design/icons';
-import { fetchWorkspaces } from '../api';
+import { useWorkspaces } from '../hooks/useWorkspaces';
 
 const { Text, Paragraph } = Typography;
 
@@ -13,7 +13,7 @@ export default function FavoriteSpacesModal({
   onClose,
   onSave,
 }) {
-  const [allWorkspaces, setAllWorkspaces] = useState([]);
+  const allWorkspaces = useWorkspaces(cookie, open);
   const [selected, setSelected] = useState([]); // [{workspace_key, workspace_name}]
   const [favSearch, setFavSearch] = useState('');
   const [addOpen, setAddOpen] = useState(false);
@@ -28,24 +28,6 @@ export default function FavoriteSpacesModal({
     setAllSearch('');
     setAddOpen(false);
   }, [open, favorites]);
-
-  // 加载全部空间（下拉用同一份全量数据）
-  useEffect(() => {
-    if (!open || !cookie?.trim()) return undefined;
-    let cancelled = false;
-    (async () => {
-      try {
-        const data = await fetchWorkspaces(cookie);
-        if (cancelled || !data.success) return;
-        setAllWorkspaces(data.data || []);
-      } catch {
-        if (!cancelled) setAllWorkspaces([]);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [open, cookie]);
 
   const selectedKeys = useMemo(
     () => new Set(selected.map((w) => w.workspace_key)),

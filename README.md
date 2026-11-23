@@ -124,7 +124,7 @@ docker rm add_work
 
 ```bash
 make install        # 后端 uv sync + 前端 npm install
-make lint           # 后端 ruff check + format --check，前端 tsc 类型检查
+make lint           # 后端 ruff check + format --check + basedpyright，前端 tsc 类型检查
 make format         # ruff format 格式化后端代码
 make test           # 后端 pytest + 前端 tsc 类型检查
 make typecheck      # 仅前端 tsc --noEmit
@@ -137,6 +137,7 @@ make build          # 前端 build + Docker 镜像构建
 |------|------|
 | 安装后端依赖 | `uv sync` |
 | 后端静态检查 | `uv run ruff check . && uv run ruff format --check .` |
+| 后端类型检查 | `uv run basedpyright` |
 | 后端格式化 | `uv run ruff format .` |
 | 后端测试 | `uv run pytest -q` |
 | 前端类型检查 | `cd frontend && npm run typecheck` |

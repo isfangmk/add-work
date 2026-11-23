@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
@@ -18,6 +19,53 @@ _TZ = ZoneInfo("Asia/Shanghai")
 
 # {username+workspace_name: quoted_iql}
 workspace_iql_cache: Dict[str, str] = {}
+
+# {需求 id: {id, key, name}} 惰性缓存：命中直接用，未命中才查详情并回填
+_requirement_cache: Dict[str, Dict[str, str]] = {}
+_requirement_pending: Set[str] = set()
+
+
+def _requirement_from_item(requirement_id: str, item: Dict[str, Any]) -> Dict[str, str]:
+    return {
+        "id": requirement_id,
+        "key": item.get("key") or "",
+        "name": item.get("name") or "",
+    }
+
+
+async def fetch_requirement(
+    headers: Dict[str, str], requirement_id: str
+) -> Optional[Dict[str, str]]:
+    """取需求 {id, key, name}：命中缓存直接返回，未命中查详情回填（并发去重）。"""
+    cached = _requirement_cache.get(requirement_id)
+    if cached:
+        return cached
+    # 并发去重：同一 id 只发一次详情请求，其余等待其回填
+    if requirement_id in _requirement_pending:
+        for _ in range(50):  # 最多等 ~5s
+            cached = _requirement_cache.get(requirement_id)
+            if cached:
+                return cached
+            await asyncio.sleep(0.1)
+        return None
+    _requirement_pending.add(requirement_id)
+    try:
+        resp = await http_client.get(
+            f"{settings.base_url}/api/team/parse/api/items/{quote(requirement_id, safe='')}"
+            "?detail=true",
+            headers=headers,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        item = data.get("item") or data
+        result = _requirement_from_item(requirement_id, item)
+        _requirement_cache[requirement_id] = result
+        return result
+    except Exception as exc:
+        logger.error(format_http_error(f"获取需求详情失败 id={requirement_id}", exc))
+        return None
+    finally:
+        _requirement_pending.discard(requirement_id)
 
 
 async def fetch_current_user(
@@ -71,6 +119,7 @@ async def search_work_items(
                 "assignee",
                 "createdAt",
                 "createdBy",
+                "DataQuote01",
                 "earlyWarning",
                 "field019",
                 "field028",
@@ -94,8 +143,19 @@ async def search_work_items(
         )
         resp.raise_for_status()
         items: List[Dict[str, Any]] = []
+        requirement_ids: Set[str] = set()
         for item in resp.json()["payload"]["items"]:
             sprint = item["values"]["sprint"][0]
+            # 关联需求：列表接口返回 id 字符串数组，详情接口可能返回对象，统一取第一个 id
+            data_quote = item["values"].get("DataQuote01") or []
+            first_quote = data_quote[0] if data_quote else None
+            requirement_id = (
+                first_quote.get("value") or first_quote.get("objectId")
+                if isinstance(first_quote, dict)
+                else first_quote
+            ) or ""
+            if requirement_id:
+                requirement_ids.add(requirement_id)
             items.append(
                 {
                     "object_id": item["objectId"],
@@ -107,8 +167,23 @@ async def search_work_items(
                         "%Y-%m-%d"
                     ),
                     "workspace_name": workspace_name,
+                    "requirement_id": requirement_id,
+                    "requirement_name": "",
+                    "requirement_key": "",
                 }
             )
+
+        # 惰性缓存补全需求名称：并发查（未命中才请求详情，命中直接用缓存）
+        if requirement_ids:
+            details = await asyncio.gather(
+                *[fetch_requirement(headers, rid) for rid in requirement_ids]
+            )
+            id_to_req = {d["id"]: d for d in details if d}
+            for item in items:
+                req = id_to_req.get(item["requirement_id"])
+                if req:
+                    item["requirement_name"] = req["name"]
+                    item["requirement_key"] = req["key"]
         return items
     except Exception as exc:
         logger.error(format_http_error("搜索事项列表失败", exc, resp))
@@ -128,8 +203,9 @@ async def search_requirements(
     resp = None
     try:
         kw = (keyword or "").strip().replace("'", "\\'").replace('"', '\\"')
+        spaces = ",".join(f'"{name}"' for name in settings.requirement_workspaces)
         iql = (
-            '(\'所属空间\' in ["产品中心","26年春季正式版","26年1230预览版"] '
+            f"('所属空间' in [{spaces}] "
             "and '类型' in [\"需求\"] "
             f"and ('标题' ~ '{kw}' or key = '{kw}')) order by  创建时间 desc"
         )
@@ -140,7 +216,7 @@ async def search_requirements(
             "extraSearchField": "",
             "fromField": "DataQuote01",
             "fields": ["name", "key", "status", "itemType", "id"],
-            "refererInfo": {"workspaceId": "SyxVCy6BOs"},
+            "refererInfo": {"workspaceId": settings.requirement_workspace_id},
         }
         resp = await http_client.post(
             settings.base_url + "/api/team/parse/api/search?from=DataQuote01",

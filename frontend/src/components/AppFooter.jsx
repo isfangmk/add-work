@@ -6,9 +6,7 @@ import {
   MessageOutlined
 } from '@ant-design/icons';
 import FeedbackModal from './FeedbackModal';
-
-const REPO_URL = 'https://github.com/isfangmk/add-work';
-const APP_VERSION = 'v2.0';
+import { APP_VERSION, REPO_URL } from '../constants';
 
 export default function AppFooter({ username }) {
   const [helpOpen, setHelpOpen] = useState(false);

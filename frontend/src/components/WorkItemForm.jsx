@@ -11,9 +11,10 @@ import {
 } from 'antd';
 import { MinusOutlined, PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { fetchSprints, fetchWorkspaces } from '../api';
+import { fetchSprints } from '../api';
+import { useWorkspaces } from '../hooks/useWorkspaces';
 import RequirementSelect from './RequirementSelect';
-import { orderWorkspacesByFavorites } from '../utils/workspaces';
+import { buildWorkspaceOptions, sortSprintsWithPreferred } from '../utils/workspaceOptions';
 
 export default function WorkItemForm({
   workItems,
@@ -29,7 +30,7 @@ export default function WorkItemForm({
   onAiWrite,
   onSubmit
 }) {
-  const [workspaces, setWorkspaces] = useState([]);
+  const workspaces = useWorkspaces(cookie);
   const [sprintsByWs, setSprintsByWs] = useState({});
 
   const defaultWorkspace = sourceItem?.workspace_name || '';
@@ -45,27 +46,6 @@ export default function WorkItemForm({
     if (defaultWorkspace) names.add(defaultWorkspace);
     return Array.from(names).sort().join('\n');
   }, [workItems, defaultWorkspace]);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!cookie?.trim()) {
-      setWorkspaces([]);
-      return undefined;
-    }
-    (async () => {
-      try {
-        const data = await fetchWorkspaces(cookie);
-        if (cancelled || !data.success) return;
-        setWorkspaces(data.data || []);
-      } catch (err) {
-        console.error(err);
-        if (!cancelled) setWorkspaces([]);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [cookie]);
 
   useEffect(() => {
     let cancelled = false;
@@ -85,13 +65,9 @@ export default function WorkItemForm({
               fetched[workspace] = [];
               return;
             }
-            const list = [...(data.data || [])];
+            let list = data.data || [];
             if (workspace === defaultWorkspace && preferredSprint) {
-              list.sort((a, b) => {
-                if (a.object_id === preferredSprint) return -1;
-                if (b.object_id === preferredSprint) return 1;
-                return 0;
-              });
+              list = sortSprintsWithPreferred(list, preferredSprint);
             }
             fetched[workspace] = list;
           } catch (err) {
@@ -134,16 +110,7 @@ export default function WorkItemForm({
     onSubmit();
   };
 
-  const workspaceOptions = orderWorkspacesByFavorites(workspaces, favorites).map((ws) => ({
-    value: ws.workspace_name,
-    label: ws.isFavorite ? (
-      <span>
-        <span style={{ color: '#f5a623' }}>★</span> {ws.workspace_name}
-      </span>
-    ) : (
-      ws.workspace_name
-    )
-  }));
+  const workspaceOptions = buildWorkspaceOptions(workspaces, favorites);
 
   return (
     <div className="work-item-form">
@@ -200,6 +167,11 @@ export default function WorkItemForm({
                 <RequirementSelect
                   cookie={cookie}
                   value={item.requirement_id}
+                  initialLabel={
+                    item.requirement_name
+                      ? `${item.requirement_key ? item.requirement_key + '  ' : ''}${item.requirement_name}`
+                      : undefined
+                  }
                   onChange={(id, name) =>
                     onChange(index, { requirement_id: id, requirement_name: name })
                   }

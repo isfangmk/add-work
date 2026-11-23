@@ -8,6 +8,20 @@ const TYPE = {
   default: undefined
 };
 
+// 仅把 http(s) URL 渲染成安全链接；其余文本由 React 自动转义
+function renderMessage(message) {
+  const parts = String(message).split(/(https?:\/\/[^\s]+)/g);
+  return parts.map((part, i) =>
+    /^https?:\/\//.test(part) ? (
+      <a key={i} href={part} target="_blank" rel="noopener noreferrer">
+        {part}
+      </a>
+    ) : (
+      <React.Fragment key={i}>{part}</React.Fragment>
+    )
+  );
+}
+
 export default function TaskLogPanel({ taskLog }) {
   const ref = useRef(null);
   const empty = !taskLog.length;
@@ -32,7 +46,7 @@ export default function TaskLogPanel({ taskLog }) {
             type={TYPE[line.type]}
             style={{ display: 'block', marginBottom: 4, whiteSpace: 'pre-wrap' }}
           >
-            <span dangerouslySetInnerHTML={{ __html: line.message }} />
+            {renderMessage(line.message)}
           </Typography.Text>
         ))
       )}

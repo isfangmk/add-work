@@ -14,17 +14,17 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-@router.post("/get-current-user", response_model=ApiResponse)
+@router.post("/get-current-user")
 async def get_current_user(request: CurrentUserRequest) -> JSONResponse:
     try:
         username, git_email, _real_name = await resolve_current_user(request.cookie)
         if not username:
             raise AuthAppError("检查复制Cookie是否完整或已过期")
         return JSONResponse(
-            ApiResponse.ok(data={"username": username, "gitEmail": git_email or ""}).model_dump()
+            ApiResponse.ok(data={"username": username, "git_email": git_email or ""}).model_dump()
         )
     except AuthAppError:
         raise
-    except Exception as exc:
-        logger.error("获取当前用户失败：%s", exc)
-        raise HTTPException(status_code=500, detail=f"获取当前用户失败：{exc}") from exc
+    except Exception:
+        logger.exception("获取当前用户失败")
+        raise HTTPException(status_code=500, detail="获取当前用户失败，请稍后重试") from None

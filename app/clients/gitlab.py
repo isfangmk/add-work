@@ -50,7 +50,8 @@ def _pick_user(users: List[Dict[str, Any]], author: str) -> Optional[Dict[str, A
         fields.discard("")
         if author_l in fields or local in fields:
             return user
-    return users[0] if users else None
+    # 无精确匹配时不猜测，避免把提交归属到无关用户
+    return None
 
 
 async def _resolve_user_id(author: str) -> Optional[int]:
@@ -97,7 +98,7 @@ async def _resolve_user_id(author: str) -> Optional[int]:
         "GitLab 解析用户 author=%s user_id=%s username=%s elapsed_ms=%.0f",
         author,
         user_id,
-        picked.get("username"),
+        (picked or {}).get("username"),
         elapsed_ms,
     )
     return user_id

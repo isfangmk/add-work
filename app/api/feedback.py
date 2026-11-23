@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-@router.post("/feedback", response_model=ApiResponse)
+@router.post("/feedback")
 async def submit_feedback(request: FeedbackRequest) -> JSONResponse:
     content = (request.content or "").strip()
     if not content:
@@ -26,6 +26,7 @@ async def submit_feedback(request: FeedbackRequest) -> JSONResponse:
         contact=(request.contact or "").strip() or None,
     )
     if feedback_id is None:
+        logger.error("保存反馈失败 username=%s", request.username)
         raise HTTPException(status_code=500, detail="反馈保存失败，请稍后重试")
 
     logger.info(

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import time
-from collections import defaultdict
 from datetime import date, datetime, timedelta
 from typing import Annotated, Any, Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
@@ -21,6 +20,7 @@ from app.clients.llm import summarize_commits as llm_summarize_commits  # noqa: 
 from app.core.config import settings  # noqa: E402
 from app.core.logger import get_logger  # noqa: E402
 from app.services.work import (  # noqa: E402
+    group_items_by_date,
     load_calendar_items,
     resolve_current_user,
     run_work_task,
@@ -48,7 +48,7 @@ mcp = FastMCP(
         "企业微信会注入用户中文名。先调用 whoami(real_name=中文名)。"
         "若尚未登录：引导用户打开 https://gitee.ibr.net.cn/ 登录，"
         "把 PRE-GW-SESSION Cookie 再通过 whoami 的 cookie 参数提交"
-        "（值类似 17eca8db2ef64b54a9f1b753919fb1d6）。"
+        f"（值类似 {settings.cookie_example}）。"
         "whoami 成功后得到 Gitee 用户名，后续 get_calendar / list_workspaces / "
         "list_sprints / suggest_titles / create_from_source / update_item 的 account "
         "使用该 Gitee 用户名。禁止编造账号。"
@@ -131,7 +131,7 @@ def _gitee_cookie_guide(reason: str) -> str:
     return (
         f"{reason}请先打开 {_GITEE_LOGIN_URL} 登录，"
         "然后将 PRE-GW-SESSION 的 Cookie 值再调用 whoami。"
-        "Cookie 值类似 17eca8db2ef64b54a9f1b753919fb1d6"
+        f"Cookie 值类似 {settings.cookie_example}"
         "（参数 real_name 为中文名，cookie 为该值）。"
     )
 
@@ -186,16 +186,6 @@ def _week_range(offset: int = 0) -> Tuple[date, date, str]:
     return monday, sunday, label
 
 
-def _group_days(results: List[Any]) -> Dict[str, list]:
-    week_items: Dict[str, list] = defaultdict(list)
-    for batch in results:
-        if not batch:
-            continue
-        for item in batch:
-            week_items[item["date"]].append(item)
-    return dict(week_items)
-
-
 def _pick_source(days: Dict[str, list]) -> Optional[Dict[str, Any]]:
     dates = sorted(day for day, items in days.items() if items)
     if not dates:
@@ -243,7 +233,7 @@ async def _run_task(
     task = get_task(task_id) or {}
     return _ok(
         {
-            "taskId": task_id,
+            "task_id": task_id,
             "success": task.get("success"),
             "log": copy_logs(task_id),
         },
@@ -257,9 +247,7 @@ async def whoami(
     cookie: Annotated[
         Optional[str],
         Field(
-            description=(
-                "可选。Gitee 的 PRE-GW-SESSION Cookie 值，类似 17eca8db2ef64b54a9f1b753919fb1d6"
-            )
+            description=(f"可选。Gitee 的 PRE-GW-SESSION Cookie 值，类似 {settings.cookie_example}")
         ),
     ] = None,
 ) -> Dict[str, Any]:
@@ -270,32 +258,31 @@ async def whoami(
 
     raw_cookie = (cookie or "").strip()
     if raw_cookie:
-        username, git_email, card = await resolve_current_user(raw_cookie)
+        username, git_email, _card = await resolve_current_user(raw_cookie)
         if not username:
             return _fail(_gitee_cookie_guide("Cookie 无效或已过期，"))
-        bound_name = cn or card
-        update_cookie_real_name(username, bound_name)
+        update_cookie_real_name(username, cn)
         return _ok(
             {
                 "username": username,
-                "real_name": bound_name,
-                "gitEmail": git_email or "",
+                "real_name": cn,
+                "git_email": git_email or "",
             }
         )
 
     record = get_cookie_record_by_real_name(cn)
     if not record:
         return _fail(_gitee_cookie_guide(f"未找到中文名 {cn} 的登录记录，"))
-    stored_user, stored_cookie = record
-    username, git_email, card = await resolve_current_user(stored_cookie)
+    _, stored_cookie = record
+    username, git_email, _card = await resolve_current_user(stored_cookie)
     if not username:
         return _fail(_gitee_cookie_guide("登录已过期，"))
     update_cookie_real_name(username, cn)
     return _ok(
         {
-            "username": username or stored_user,
-            "real_name": cn or card,
-            "gitEmail": git_email or "",
+            "username": username,
+            "real_name": cn,
+            "git_email": git_email or "",
         }
     )
 
@@ -328,10 +315,10 @@ async def get_calendar(
     if results is None or name is None:
         return _fail(_gitee_cookie_guide("登录已过期，"))
 
-    days = _group_days(results)
+    days = group_items_by_date(results)
     return _ok(
         {
-            "user": {"username": username, "gitEmail": git_email},
+            "user": {"username": username, "git_email": git_email},
             "week": {"start": start, "end": end, "label": label},
             "days": days,
             "recommended_source": _pick_source(days),
@@ -360,7 +347,7 @@ async def list_workspaces(
             "workspace_name": w["workspace_name"],
             "workspace_id": details.get(w["workspace_key"], {}).get("workspace_id", ""),
             "workspace_key": w["workspace_key"],
-            "isFavorite": w["workspace_key"] in fav_keys,
+            "is_favorite": w["workspace_key"] in fav_keys,
         }
         for w in workspaces
     ]
@@ -494,17 +481,10 @@ async def suggest_titles(
         return err
     if not git_email:
         return _fail("当前用户没有 gitEmail，无法拉取提交")
-    raw = await llm_summarize_commits(git_email, start_date, end_date, exclude_dates or [])
-    if not raw:
+    summary = await llm_summarize_commits(git_email, start_date, end_date, exclude_dates or [])
+    if not summary:
         return _ok({}, msg="该日期范围内没有可用的 Git 提交记录")
-    try:
-        summary = json.loads(raw)
-    except json.JSONDecodeError:
-        return _fail("LLM 返回的 JSON 无效")
-    cleaned = {k: (v[0] if isinstance(v, list) and v else str(v)) for k, v in summary.items()}
-    if not cleaned:
-        return _ok({}, msg="该日期范围内没有可用的 Git 提交记录")
-    return _ok(cleaned)
+    return _ok(summary)
 
 
 @mcp.tool

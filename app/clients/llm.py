@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import json
 import time
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from openai import AsyncOpenAI
 
 from app.clients.gitlab import fetch_commits
 from app.core.config import settings
-from app.core.http_client import http_client
 from app.core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -37,7 +36,6 @@ def _get_client() -> Optional[AsyncOpenAI]:
         _client = AsyncOpenAI(
             api_key=settings.openai_api_key,
             base_url=settings.openai_base_url,
-            http_client=http_client,
         )
         return _client
     except Exception as exc:
@@ -50,18 +48,19 @@ async def summarize_commits(
     start_date: str,
     end_date: str,
     exclude_dates: List[str],
-) -> str:
+) -> Dict[str, str]:
+    """按 Git 提交生成 {日期: 事项名称}。解析与清洗在此完成，调用方直接使用结果。"""
     total_started = time.perf_counter()
     commits = await fetch_commits(author, start_date, end_date)
     exclude = set(exclude_dates)
     filtered = [c for c in commits if c.get("date") not in exclude]
     if not filtered:
         logger.warning("过滤后无提交")
-        return ""
+        return {}
 
     client = _get_client()
     if not client:
-        return ""
+        return {}
 
     prompt = json.dumps(filtered, ensure_ascii=False)
     logger.info("git提交信息：\n%s", prompt)
@@ -90,11 +89,29 @@ async def summarize_commits(
             (time.perf_counter() - llm_started) * 1000,
             (time.perf_counter() - total_started) * 1000,
         )
-        return content
+        return _parse_summary(content)
     except Exception as exc:
         logger.error(
             "大模型调用失败：%s llm_elapsed_ms=%.0f",
             exc,
             (time.perf_counter() - llm_started) * 1000,
         )
-        return ""
+        return {}
+
+
+def _parse_summary(content: str) -> Dict[str, str]:
+    """把 LLM 的 JSON 文本解析成干净的 {日期: 名称}；格式非法时返回空字典。"""
+    if not content:
+        return {}
+    try:
+        summary = json.loads(content)
+    except json.JSONDecodeError:
+        logger.exception("LLM 返回的 JSON 无效")
+        return {}
+    if not isinstance(summary, dict):
+        logger.error("LLM 返回值不是对象：%s", type(summary).__name__)
+        return {}
+    return {
+        str(date): (value[0] if isinstance(value, list) and value else str(value))
+        for date, value in summary.items()
+    }

@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
+import hmac
 import sys
+from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -21,6 +22,7 @@ from sqlite_web.sqlite_web import initialize_app as init_sqlite_web  # noqa: E40
 from starlette.middleware.wsgi import WSGIMiddleware  # noqa: E402
 
 from app.api import router  # noqa: E402
+from app.core.background_tasks import spawn  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.core.exceptions import AppError  # noqa: E402
 from app.core.http_client import close_http_client  # noqa: E402
@@ -43,7 +45,7 @@ PREFIX = settings.path_prefix
 @asynccontextmanager
 async def app_lifespan(_app: FastAPI):
     init_db()
-    asyncio.create_task(restore_on_startup())
+    spawn(restore_on_startup(), name="restore-keepalive")
     yield
     await close_http_client()
 
@@ -59,8 +61,8 @@ app = FastAPI(title="添加工时工具", version="2.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=settings.cors_origins,
+    allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
@@ -83,7 +85,9 @@ _MCP_PATH = f"{PREFIX}/mcp"
 
 
 @app.middleware("http")
-async def mcp_http_middleware(request: Request, call_next):
+async def mcp_http_middleware(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
     # MCP Streamable HTTP 客户端通常不跟随 307，把无尾斜杠改写到挂载路径内部。
     path = request.scope.get("path", "")
     if path == _MCP_PATH:
@@ -100,7 +104,7 @@ async def mcp_http_middleware(request: Request, call_next):
             {"error": "unauthorized", "msg": "服务未配置 MCP_TOKEN"},
             status_code=401,
         )
-    if mcp_token_from_headers(dict(request.headers)) != expected:
+    if not hmac.compare_digest(mcp_token_from_headers(dict(request.headers)), expected):
         return JSONResponse(
             {"error": "unauthorized", "msg": "缺少或错误的 X-MCP-Token"},
             status_code=401,
@@ -109,7 +113,7 @@ async def mcp_http_middleware(request: Request, call_next):
 
 
 @app.get("/")
-async def root_redirect():
+async def root_redirect() -> Response:
     return RedirectResponse(url=f"{PREFIX}/", status_code=302)
 
 
@@ -120,7 +124,7 @@ if static_dir.is_dir():
 
 @app.get(PREFIX)
 @app.get(f"{PREFIX}/")
-async def spa_index():
+async def spa_index() -> Response:
     index = BASE_DIR / "frontend" / "build" / "index.html"
     if index.is_file():
         return FileResponse(index)
@@ -131,7 +135,7 @@ app.include_router(router, prefix=PREFIX)
 
 
 @app.exception_handler(AppError)
-async def handle_app_error(_request: Request, exc: AppError):
+async def handle_app_error(_request: Request, exc: AppError) -> Response:
     return JSONResponse(
         status_code=exc.status_code,
         content=ApiResponse.fail(exc.detail).model_dump(),

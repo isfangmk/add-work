@@ -45,7 +45,7 @@ async def _workspace_map(
     }
 
 
-@router.post("/get-workspace-list", response_model=ApiResponse)
+@router.post("/get-workspace-list")
 async def get_workspace_list(request: WorkspaceListRequest) -> JSONResponse:
     configs = await _workspace_map(request.cookie)
     data: List[Dict[str, Any]] = [
@@ -59,19 +59,19 @@ async def get_workspace_list(request: WorkspaceListRequest) -> JSONResponse:
     return JSONResponse(ApiResponse.ok(data=data).model_dump())
 
 
-@router.post("/get-favorite-workspaces", response_model=ApiResponse)
+@router.post("/get-favorite-workspaces")
 async def get_favorite_workspaces_api(request: UserRequest) -> JSONResponse:
     data = get_favorite_workspaces(request.username)
     return JSONResponse(ApiResponse.ok(data=data).model_dump())
 
 
-@router.post("/save-favorite-workspaces", response_model=ApiResponse)
+@router.post("/save-favorite-workspaces")
 async def save_favorite_workspaces_api(request: FavoriteWorkspacesRequest) -> JSONResponse:
     replace_favorite_workspaces(request.username, [ws.model_dump() for ws in request.workspaces])
     return JSONResponse(ApiResponse.ok(msg="关注空间已保存").model_dump())
 
 
-@router.post("/get-sprint-list", response_model=ApiResponse)
+@router.post("/get-sprint-list")
 async def get_sprint_list(request: SprintListRequest) -> JSONResponse:
     try:
         headers = settings.build_headers(request.cookie)
@@ -95,12 +95,12 @@ async def get_sprint_list(request: SprintListRequest) -> JSONResponse:
         return JSONResponse(ApiResponse.ok(data=sprints).model_dump())
     except (WorkspaceNotFoundError, AuthAppError):
         raise
-    except Exception as exc:
-        logger.error("获取迭代列表失败：%s", exc)
-        raise HTTPException(status_code=500, detail=f"获取迭代列表失败：{exc}") from exc
+    except Exception:
+        logger.exception("获取迭代列表失败")
+        raise HTTPException(status_code=500, detail="获取迭代列表失败，请稍后重试") from None
 
 
-@router.post("/search-requirements", response_model=ApiResponse)
+@router.post("/search-requirements")
 async def search_requirements(request: RequirementSearchRequest) -> JSONResponse:
     try:
         headers = settings.build_headers(request.cookie)
@@ -110,6 +110,6 @@ async def search_requirements(request: RequirementSearchRequest) -> JSONResponse
         return JSONResponse(ApiResponse.ok(data=requirements).model_dump())
     except AuthAppError:
         raise
-    except Exception as exc:
-        logger.error("获取需求列表失败：%s", exc)
-        raise HTTPException(status_code=500, detail=f"获取需求列表失败：{exc}") from exc
+    except Exception:
+        logger.exception("获取需求列表失败")
+        raise HTTPException(status_code=500, detail="获取需求列表失败，请稍后重试") from None

@@ -27,6 +27,14 @@ class Settings:
     current_user_path: str = "/api/one/Bonree/rest/v1/companies/Bonree/users/current/center"
     parse_app_id: str = "Bonree"
 
+    # 需求搜索：三空间范围与引用的 workspaceId
+    requirement_workspaces: List[str] = field(
+        default_factory=lambda: ["产品中心", "26年春季正式版", "26年1230预览版"]
+    )
+    requirement_workspace_id: str = "SyxVCy6BOs"
+    # 仅用于文档展示的占位值，不是真实 Cookie（真实值禁止写入源码）
+    cookie_example: str = "<PRE-GW-SESSION 的值>"
+
     heartbeat_interval: int = 600
     http_timeout: float = 30.0
 
@@ -42,6 +50,12 @@ class Settings:
     )
 
     path_prefix: str = "/add-work"
+    # 浏览器同源部署时前端与 API 同源；如需跨域，按需配置（逗号分隔），不要与 credentials 同用通配
+    cors_origins: List[str] = field(
+        default_factory=lambda: [
+            origin.strip() for origin in os.getenv("CORS_ORIGINS", "*").split(",") if origin.strip()
+        ]
+    )
     sqlite_web_password: str = field(default_factory=lambda: os.getenv("SQLITE_WEB_PASSWORD", ""))
     mcp_token: str = field(default_factory=lambda: os.getenv("MCP_TOKEN", ""))
     add_work_url: str = field(default_factory=lambda: os.getenv("ADD_WORK_URL", ""))

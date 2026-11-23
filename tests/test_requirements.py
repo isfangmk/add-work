@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from app.clients import gitee
+from app.core.config import settings
 from app.core.http_client import http_client
 from app.services import work
 
@@ -18,6 +19,63 @@ class _FakeResponse:
 
     def json(self):
         return self._payload
+
+
+@pytest.mark.asyncio
+async def test_search_work_items_maps_requirement_id(monkeypatch):
+    """日历列表接口返回 DataQuote01（id 数组）时映射为 requirement_id，并按缓存补全 name/key。"""
+    captured = {"get_urls": []}
+
+    async def fake_post(url, headers=None, json=None):
+        captured["fields"] = json["fields"]
+        return _FakeResponse(
+            {
+                "payload": {
+                    "items": [
+                        {
+                            "objectId": "ITEM1",
+                            "name": "事项一",
+                            "values": {
+                                "sprint": [{"name": "S1", "objectId": "SP1"}],
+                                "field019": 2.0,
+                                "Lkb66aTo": 1763846400000,
+                                "DataQuote01": ["REQ1"],
+                            },
+                        },
+                        {
+                            "objectId": "ITEM2",
+                            "name": "事项二",
+                            "values": {
+                                "sprint": [{"name": "S1", "objectId": "SP1"}],
+                                "field019": 1.0,
+                                "Lkb66aTo": 1763846400000,
+                            },
+                        },
+                    ]
+                }
+            }
+        )
+
+    async def fake_get(url, headers=None):
+        captured["get_urls"].append(url)
+        return _FakeResponse({"item": {"key": "105-1", "name": "需求一"}})
+
+    monkeypatch.setattr(http_client, "post", fake_post)
+    monkeypatch.setattr(http_client, "get", fake_get)
+    gitee._requirement_cache.clear()
+    items = await gitee.search_work_items("alice", {}, "WS", "09", "2026-11-23", "2026-11-23")
+
+    assert "DataQuote01" in captured["fields"]
+    assert items[0]["requirement_id"] == "REQ1"
+    assert items[0]["requirement_name"] == "需求一"
+    assert items[0]["requirement_key"] == "105-1"
+    assert items[1]["requirement_id"] == ""
+    assert len(captured["get_urls"]) == 1  # 只查一次详情
+
+    # 第二次调用命中缓存，不再请求详情
+    captured["get_urls"].clear()
+    await gitee.search_work_items("alice", {}, "WS", "09", "2026-11-23", "2026-11-23")
+    assert captured["get_urls"] == []
 
 
 @pytest.mark.asyncio
@@ -43,14 +101,13 @@ async def test_search_requirements_url_and_body(monkeypatch):
     result = await gitee.search_requirements({}, keyword="工作流", size=10)
 
     assert captured["url"].endswith("/api/team/parse/api/search?from=DataQuote01")
-    assert "产品中心" in captured["body"]["iql"]
-    assert "26年春季正式版" in captured["body"]["iql"]
+    assert all(name in captured["body"]["iql"] for name in settings.requirement_workspaces)
     assert "需求" in captured["body"]["iql"]
     assert "'标题' ~ '工作流'" in captured["body"]["iql"]
     assert "key = '工作流'" in captured["body"]["iql"]
     assert captured["body"]["size"] == 10
     assert captured["body"]["fromField"] == "DataQuote01"
-    assert captured["body"]["refererInfo"]["workspaceId"] == "SyxVCy6BOs"
+    assert captured["body"]["refererInfo"]["workspaceId"] == settings.requirement_workspace_id
     assert result == [
         {"id": "REQ1", "key": "105-1", "name": "需求一"},
         {"id": "REQ2", "key": "", "name": "需求二"},
@@ -159,24 +216,24 @@ async def test_run_work_task_passes_data_quote_id(monkeypatch):
 
 
 def test_start_task_request_requirement_ids():
-    """StartTaskRequest 校验 requirementIds 长度并补齐空串。"""
+    """StartTaskRequest 校验 requirement_ids 长度并补齐空串。"""
     from app.schemas import StartTaskRequest
 
     base = dict(
         cookie="c",
-        sourceObjectId="S",
+        source_object_id="S",
         workspace_name="W",
         names=["a", "b"],
-        sprintIds=["s1", "s2"],
+        sprint_ids=["s1", "s2"],
         times=[1.0, 2.0],
         dates=["2026-11-23", "2026-11-24"],
     )
     # 长度不一致 → 不通过
-    req = StartTaskRequest(**base, requirementIds=["REQ1"])
+    req = StartTaskRequest(**base, requirement_ids=["REQ1"])
     assert req.lengths_match() is False
 
     # 长度一致 → 通过，补齐逻辑正常
-    req = StartTaskRequest(**base, requirementIds=["REQ1", "REQ2"])
+    req = StartTaskRequest(**base, requirement_ids=["REQ1", "REQ2"])
     assert req.lengths_match() is True
     assert req.resolved_requirement_ids() == ["REQ1", "REQ2"]
 

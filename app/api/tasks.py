@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import asyncio
-
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
 from app.clients import gitee
+from app.core.background_tasks import spawn
 from app.core.config import settings
 from app.core.exceptions import (
     AuthAppError,
@@ -24,7 +23,7 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-@router.post("/start-task", response_model=ApiResponse)
+@router.post("/start-task")
 async def start_task(request: StartTaskRequest) -> JSONResponse:
     try:
         if not request.lengths_match():
@@ -43,30 +42,33 @@ async def start_task(request: StartTaskRequest) -> JSONResponse:
         init_task(task_id)
         append_log(task_id, "📋 任务已创建，准备执行...")
 
-        asyncio.create_task(
+        spawn(
             run_work_task(
-                request.username,
+                request.username or "",
                 settings.build_headers(request.cookie),
-                request.sourceObjectId,
+                request.source_object_id,
                 request.names,
-                request.sprintIds,
+                request.sprint_ids,
                 request.times,
                 request.dates,
                 workspace_names,
                 task_id,
                 is_update=request.is_update,
                 data_quote_ids=request.resolved_requirement_ids(),
-            )
+            ),
+            name=f"work-task-{task_id}",
         )
-        return JSONResponse(ApiResponse.ok(data={"taskId": task_id}, msg="任务已启动").model_dump())
+        return JSONResponse(
+            ApiResponse.ok(data={"task_id": task_id}, msg="任务已启动").model_dump()
+        )
     except (ValidationAppError, WorkspaceNotFoundError):
         raise
-    except Exception as exc:
-        logger.error("启动任务失败：%s", exc)
-        raise HTTPException(status_code=500, detail=f"启动任务失败：{exc}") from exc
+    except Exception:
+        logger.exception("启动任务失败")
+        raise HTTPException(status_code=500, detail="启动任务失败，请稍后重试") from None
 
 
-@router.get("/task-status", response_model=TaskStatusResponse)
+@router.get("/task-status")
 async def task_status(task_id: str) -> JSONResponse:
     task = get_task(task_id)
     if task is None:

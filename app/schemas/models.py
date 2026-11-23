@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from typing import Any, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class LLMSummaryRequest(BaseModel):
-    gitEmail: str
-    startDate: str
-    endDate: str
-    excludeDates: Optional[List[str]] = Field(default_factory=list)
+    git_email: str
+    start_date: str
+    end_date: str
+    exclude_dates: Optional[List[str]] = Field(default_factory=list)
 
 
 class WorkspaceListRequest(BaseModel):
@@ -44,10 +44,10 @@ class SprintListRequest(BaseModel):
 
 class WorkItemsRequest(BaseModel):
     cookie: str
-    startDate: str
-    endDate: str
+    start_date: str
+    end_date: str
     username: str = Field(..., min_length=1)
-    gitEmail: Optional[str] = None
+    git_email: Optional[str] = None
 
 
 class CurrentUserRequest(BaseModel):
@@ -55,18 +55,16 @@ class CurrentUserRequest(BaseModel):
 
 
 class StartTaskRequest(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
     username: Optional[str] = None
     cookie: str
-    sourceObjectId: str
+    source_object_id: str
     workspace_name: str
-    workspaceNames: Optional[List[str]] = None
+    workspace_names: Optional[List[str]] = None
     names: List[str] = Field(..., min_length=1)
-    sprintIds: List[str]
+    sprint_ids: List[str]
     times: List[float] = Field(..., min_length=1)
     dates: List[str] = Field(..., min_length=1)
-    requirementIds: Optional[List[str]] = None
+    requirement_ids: Optional[List[str]] = None
     is_update: bool = False
 
     @field_validator("times")
@@ -77,22 +75,22 @@ class StartTaskRequest(BaseModel):
         return values
 
     def resolved_workspace_names(self) -> List[str]:
-        if self.workspaceNames:
-            return self.workspaceNames
+        if self.workspace_names:
+            return self.workspace_names
         return [self.workspace_name] * len(self.names)
 
     def resolved_requirement_ids(self) -> List[str]:
-        if not self.requirementIds:
+        if not self.requirement_ids:
             return [""] * len(self.names)
         # 长度已由 lengths_match 校验；不足时用空串补齐，保证与 names 一一对应
-        return self.requirementIds + [""] * (len(self.names) - len(self.requirementIds))
+        return self.requirement_ids + [""] * (len(self.names) - len(self.requirement_ids))
 
     def lengths_match(self) -> bool:
-        lengths = {len(self.names), len(self.dates), len(self.times), len(self.sprintIds)}
-        if self.workspaceNames is not None:
-            lengths.add(len(self.workspaceNames))
-        if self.requirementIds is not None:
-            lengths.add(len(self.requirementIds))
+        lengths = {len(self.names), len(self.dates), len(self.times), len(self.sprint_ids)}
+        if self.workspace_names is not None:
+            lengths.add(len(self.workspace_names))
+        if self.requirement_ids is not None:
+            lengths.add(len(self.requirement_ids))
         return len(lengths) == 1
 
 

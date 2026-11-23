@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.clients import gitee
@@ -19,6 +20,17 @@ from app.storage.db import (
 from app.storage.task_store import append_log, finish_task
 
 logger = get_logger(__name__)
+
+
+def group_items_by_date(results: List[Any]) -> Dict[str, List[Any]]:
+    """把 [[item,...], ...] 结果按日期分组（日历接口与 MCP 共用）。"""
+    grouped: Dict[str, List[Any]] = defaultdict(list)
+    for batch in results:
+        if not batch:
+            continue
+        for item in batch:
+            grouped[item["date"]].append(item)
+    return dict(grouped)
 
 
 async def resolve_current_user(
@@ -88,7 +100,7 @@ async def load_calendar_items(
 
 
 async def run_work_task(
-    username: Optional[str],
+    username: str,
     headers: Dict[str, str],
     source_object_id: str,
     names: List[str],
@@ -151,7 +163,7 @@ async def run_work_task(
             headers, [name_to_key[n] for n in workspace_names if n in name_to_key]
         )
         # 当前关注空间 key（用于写入成功后自动收藏未关注的空间）
-        fav_keys = {f["workspace_key"] for f in get_favorite_workspaces(username or "")}
+        fav_keys = {f["workspace_key"] for f in get_favorite_workspaces(username)}
 
         for idx, (name, sprint_id, hours, day, workspace_name, data_quote_id) in enumerate(
             zip(
@@ -230,7 +242,7 @@ async def run_work_task(
                         f"⭐ 已自动关注空间「{workspace_name}」（检测到该空间有新工时）",
                     )
 
-            iql = gitee.workspace_iql_cache.get((username or "") + workspace_name, "")
+            iql = gitee.workspace_iql_cache.get(username + workspace_name, "")
             if iql and workspace.get("jump_url"):
                 jump_url = workspace["jump_url"].replace("[iql]", iql)
     except Exception as exc:
@@ -243,8 +255,4 @@ async def run_work_task(
             "🎉 任务执行完成！" + ("所有事项处理成功" if all_ok else "部分事项处理失败（见日志）"),
         )
         if jump_url:
-            append_log(
-                task_id,
-                "😎 去项目空间查看结果吧："
-                f'<a href="{jump_url}" target="_blank" rel="noopener noreferrer">点击跳转</a>',
-            )
+            append_log(task_id, f"😎 去项目空间查看结果吧：{jump_url}")

@@ -9,12 +9,13 @@ install-backend:
 install-frontend:
 	cd frontend && npm install
 
-# 静态检查：后端 ruff + 前端 tsc
+# 静态检查：后端 ruff + basedpyright + 前端 tsc
 lint: lint-backend lint-frontend
 
 lint-backend:
 	uv run ruff check .
 	uv run ruff format --check .
+	uv run basedpyright
 
 lint-frontend: typecheck
 

@@ -1,38 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, DatePicker, Form, Input, InputNumber, Modal, Select } from 'antd';
 import dayjs from 'dayjs';
-import { fetchSprints, fetchWorkspaces } from '../api';
+import { fetchSprints } from '../api';
+import { useWorkspaces } from '../hooks/useWorkspaces';
 import RequirementSelect from './RequirementSelect';
-import { orderWorkspacesByFavorites } from '../utils/workspaces';
+import { buildWorkspaceOptions, sortSprintsWithPreferred } from '../utils/workspaceOptions';
 
 export default function EditItemModal({ open, item, cookie, favorites, onClose, onSubmit }) {
   const [form] = Form.useForm();
-  const [workspaces, setWorkspaces] = useState([]);
+  const workspaces = useWorkspaces(cookie);
   const [sprints, setSprints] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const workspaceName = Form.useWatch('workspace_name', form);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!cookie?.trim()) {
-      setWorkspaces([]);
-      return undefined;
-    }
-    (async () => {
-      try {
-        const data = await fetchWorkspaces(cookie);
-        if (cancelled || !data.success) return;
-        setWorkspaces(data.data || []);
-      } catch {
-        if (!cancelled) setWorkspaces([]);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [cookie]);
 
   useEffect(() => {
     if (!open || !item) return;
@@ -59,13 +40,9 @@ export default function EditItemModal({ open, item, cookie, favorites, onClose, 
       try {
         const data = await fetchSprints(cookie, workspace);
         if (cancelled || !data.success) return;
-        const list = [...(data.data || [])];
+        let list = data.data || [];
         if (workspace === item?.workspace_name && preferredSprint) {
-          list.sort((a, b) => {
-            if (a.object_id === preferredSprint) return -1;
-            if (b.object_id === preferredSprint) return 1;
-            return 0;
-          });
+          list = sortSprintsWithPreferred(list, preferredSprint);
         }
         setSprints(list);
         const ids = new Set(list.map((s) => s.object_id));
@@ -140,16 +117,7 @@ export default function EditItemModal({ open, item, cookie, favorites, onClose, 
             showSearch
             optionFilterProp="label"
             placeholder="请选择工作空间"
-            options={orderWorkspacesByFavorites(workspaces, favorites).map((ws) => ({
-              value: ws.workspace_name,
-              label: ws.isFavorite ? (
-                <span>
-                  <span style={{ color: '#f5a623' }}>★</span> {ws.workspace_name}
-                </span>
-              ) : (
-                ws.workspace_name
-              )
-            }))}
+            options={buildWorkspaceOptions(workspaces, favorites)}
             onChange={handleWorkspaceChange}
           />
         </Form.Item>
@@ -163,8 +131,20 @@ export default function EditItemModal({ open, item, cookie, favorites, onClose, 
             options={sprints.map((s) => ({ value: s.object_id, label: s.name }))}
           />
         </Form.Item>
-        <Form.Item label="关联需求（可选）" name="requirementId">
-          <RequirementSelect cookie={cookie} />
+        <Form.Item
+          label="关联需求"
+          name="requirementId"
+          rules={[{ required: true, message: '请选择关联需求' }]}
+        >
+          <RequirementSelect
+            cookie={cookie}
+            placeholder="请选择关联需求"
+            initialLabel={
+              item?.requirement_name
+                ? `${item.requirement_key ? item.requirement_key + '  ' : ''}${item.requirement_name}`
+                : undefined
+            }
+          />
         </Form.Item>
         <Form.Item
           label="工时（小时）"

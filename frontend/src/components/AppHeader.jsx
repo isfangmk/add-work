@@ -1,7 +1,6 @@
 import React from 'react';
 import { FieldTimeOutlined } from '@ant-design/icons';
-
-const APP_VERSION = 'v2.0';
+import { APP_VERSION } from '../constants';
 
 export default function AppHeader() {
   return (

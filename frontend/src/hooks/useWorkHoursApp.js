@@ -25,7 +25,8 @@ const EMPTY_ITEM = {
   sprint_id: '',
   workspace_name: '',
   requirement_id: '',
-  requirement_name: ''
+  requirement_name: '',
+  requirement_key: ''
 };
 
 function pickLatestSourceItem(data) {
@@ -95,10 +96,10 @@ export function useWorkHoursApp() {
       try {
         const data = await fetchWorkItems({
           cookie,
-          startDate: formatDate(weekRange.monday),
-          endDate: formatDate(weekRange.sunday),
+          start_date: formatDate(weekRange.monday),
+          end_date: formatDate(weekRange.sunday),
           username: uname,
-          gitEmail: email || ''
+          git_email: email || ''
         });
         if (!data.success) {
           setError(data.msg || '获取工时数据失败');
@@ -159,7 +160,7 @@ export function useWorkHoursApp() {
           return;
         }
         uname = userRes.data.username;
-        email = userRes.data.gitEmail || '';
+        email = userRes.data.git_email || '';
         setUsername(uname);
         setGitEmail(email);
       }
@@ -177,10 +178,10 @@ export function useWorkHoursApp() {
           try {
             const hist = await fetchWorkItems({
               cookie,
-              startDate: formatDate(monday),
-              endDate: formatDate(sunday),
+              start_date: formatDate(monday),
+              end_date: formatDate(sunday),
               username: uname,
-              gitEmail: email || ''
+              git_email: email || ''
             });
             if (cancelled) return;
             picked = pickLatestSourceItem(hist?.data);
@@ -256,6 +257,10 @@ export function useWorkHoursApp() {
       message.warning('请为每个事项选择工作空间');
       return false;
     }
+    if (valid.some((i) => !i.requirement_id)) {
+      message.warning('请为每个事项选择关联需求');
+      return false;
+    }
     setTaskRunning(true);
     setTaskLog([{ message: '📅 任务已提交，正在执行...', type: 'info' }]);
 
@@ -263,21 +268,21 @@ export function useWorkHoursApp() {
       const data = await startTask({
         username,
         cookie,
-        sourceObjectId: sourceItem.object_id,
+        source_object_id: sourceItem.object_id,
         workspace_name: workspaceNames[0],
-        workspaceNames,
+        workspace_names: workspaceNames,
         names: valid.map((i) => i.name),
         times: valid.map((i) => parseFloat(Number(i.time).toFixed(1))),
         dates: valid.map((i) => i.date),
-        sprintIds: valid.map((i) => {
+        sprint_ids: valid.map((i) => {
           if (i.sprint_id) return i.sprint_id;
           const ws = i.workspace_name || defaultWorkspace;
           return ws === defaultWorkspace ? defaultSprint : '';
         }),
-        requirementIds: valid.map((i) => i.requirement_id || '')
+        requirement_ids: valid.map((i) => i.requirement_id || '')
       });
       if (!data.success) throw new Error(data.msg || '任务启动失败');
-      const taskId = data.data?.taskId;
+      const taskId = data.data?.task_id;
       if (!taskId) throw new Error('未获取到任务ID');
 
       beginPoll(taskId, () =>
@@ -310,6 +315,10 @@ export function useWorkHoursApp() {
         message.warning('请选择工作空间');
         return false;
       }
+      if (!requirementId) {
+        message.warning('请选择关联需求');
+        return false;
+      }
       setTaskRunning(true);
       setTaskLog([{ message: '📅 更新任务已提交，正在执行...', type: 'info' }]);
       try {
@@ -318,15 +327,15 @@ export function useWorkHoursApp() {
           cookie,
           workspace_name: workspace,
           is_update: true,
-          sourceObjectId: item.object_id,
+          source_object_id: item.object_id,
           names: [name.trim()],
-          sprintIds: [sprintId || item.sprint_id],
+          sprint_ids: [sprintId || item.sprint_id],
           times: [parseFloat(Number(time).toFixed(1))],
           dates: [date],
-          requirementIds: [requirementId || '']
+          requirement_ids: [requirementId || '']
         });
         if (!data.success) throw new Error(data.msg || '提交失败');
-        const taskId = data.data?.taskId;
+        const taskId = data.data?.task_id;
         if (!taskId) throw new Error('未获取到任务ID');
         beginPoll(taskId, () => refreshAfterTask());
         return true;
@@ -355,9 +364,9 @@ export function useWorkHoursApp() {
       const { monday, sunday } = getWeekRange(weekOffset);
       const data = await fetchLlmSummary({
         gitEmail,
-        startDate: formatDate(monday),
-        endDate: formatDate(sunday),
-        excludeDates: Array.from(filledDates)
+        start_date: formatDate(monday),
+        end_date: formatDate(sunday),
+        exclude_dates: Array.from(filledDates)
       });
       if (!data.success) {
         message.error(data.msg || 'AI生成事项失败');

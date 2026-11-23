@@ -16,14 +16,34 @@ export const API = {
   feedback: `${API_BASE}/feedback`
 };
 
-// 后端响应结构在各接口间不统一，调用方（JS 组件）按 any 消费，保持渐进迁移
+// 后端成功响应统一为 {success, msg, data}；错误时可能是 {detail} 或 {msg}
+interface ApiEnvelope {
+  success?: boolean;
+  msg?: string;
+  detail?: string;
+  data?: any;
+}
+
+async function parseResponse(res: Response): Promise<any> {
+  let body: ApiEnvelope;
+  try {
+    body = await res.json();
+  } catch {
+    throw new Error(`服务器返回了无效响应（HTTP ${res.status}）`);
+  }
+  if (!res.ok) {
+    throw new Error(body.detail || body.msg || `请求失败（HTTP ${res.status}）`);
+  }
+  return body;
+}
+
 async function postJson(url: string, body: unknown): Promise<any> {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
-  return res.json();
+  return parseResponse(res);
 }
 
 export function fetchCurrentUser(cookie: string): Promise<any> {
@@ -63,8 +83,8 @@ export function startTask(payload: unknown): Promise<any> {
 }
 
 export async function pollTaskStatus(taskId: string): Promise<any> {
-  const res = await fetch(`${API.taskStatus}?task_id=${taskId}`);
-  return res.json();
+  const res = await fetch(`${API.taskStatus}?task_id=${encodeURIComponent(taskId)}`);
+  return parseResponse(res);
 }
 
 export function submitFeedback(payload: unknown): Promise<any> {

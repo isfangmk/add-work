@@ -7,9 +7,8 @@ import {
   ThunderboltOutlined
 } from '@ant-design/icons';
 import { hideWelcomePromo, shouldShowWelcomePromo } from '../utils/storage';
+import { REPO_URL, SHARE_URL } from '../constants';
 
-const SHARE_URL = 'https://github.com/isfangmk/add-work';
-const APP_SHARE_LINK = 'http://192.168.4.232:3000/add-work';
 const SHARE_TEXT =
   '推荐一个添加工时工具：周历选源事项一键克隆，还支持 AI 帮写，省去重复填报。';
 
@@ -32,7 +31,7 @@ export default function WelcomePromoModal() {
   };
 
   const handleCopy = async () => {
-    const payload = `${SHARE_TEXT}\n${APP_SHARE_LINK}\n源码：${SHARE_URL}`;
+    const payload = `${SHARE_TEXT}\n${SHARE_URL}\n源码：${REPO_URL}`;
     try {
       await navigator.clipboard.writeText(payload);
       message.success('分享文案已复制，可直接发给同事');
