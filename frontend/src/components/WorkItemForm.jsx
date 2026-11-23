@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React from 'react';
 import {
   Button,
   DatePicker,
@@ -11,10 +11,10 @@ import {
 } from 'antd';
 import { MinusOutlined, PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { fetchSprints } from '../api';
 import { useWorkspaces } from '../hooks/useWorkspaces';
 import RequirementSelect from './RequirementSelect';
-import { buildWorkspaceOptions, sortSprintsWithPreferred } from '../utils/workspaceOptions';
+import SprintSelect from './SprintSelect';
+import { buildWorkspaceOptions } from '../utils/workspaceOptions';
 
 export default function WorkItemForm({
   workItems,
@@ -31,65 +31,11 @@ export default function WorkItemForm({
   onSubmit
 }) {
   const workspaces = useWorkspaces(cookie);
-  const [sprintsByWs, setSprintsByWs] = useState({});
 
   const defaultWorkspace = sourceItem?.workspace_name || '';
   const preferredSprint = sourceItem?.sprint_id || '';
 
-  // 稳定字符串，避免改名称时重复请求
-  const usedWorkspaceKey = useMemo(() => {
-    const names = new Set();
-    workItems.forEach((item) => {
-      const name = (item.workspace_name || defaultWorkspace || '').trim();
-      if (name) names.add(name);
-    });
-    if (defaultWorkspace) names.add(defaultWorkspace);
-    return Array.from(names).sort().join('\n');
-  }, [workItems, defaultWorkspace]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const used = usedWorkspaceKey ? usedWorkspaceKey.split('\n') : [];
-    if (!cookie?.trim() || !used.length) {
-      setSprintsByWs({});
-      return undefined;
-    }
-
-    (async () => {
-      const fetched = {};
-      await Promise.all(
-        used.map(async (workspace) => {
-          try {
-            const data = await fetchSprints(cookie, workspace);
-            if (!data.success) {
-              fetched[workspace] = [];
-              return;
-            }
-            let list = data.data || [];
-            if (workspace === defaultWorkspace && preferredSprint) {
-              list = sortSprintsWithPreferred(list, preferredSprint);
-            }
-            fetched[workspace] = list;
-          } catch (err) {
-            console.error(err);
-            fetched[workspace] = [];
-          }
-        })
-      );
-      if (cancelled) return;
-      setSprintsByWs((prev) => {
-        const next = { ...prev };
-        used.forEach((ws) => {
-          next[ws] = fetched[ws] || [];
-        });
-        return next;
-      });
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [usedWorkspaceKey, cookie, defaultWorkspace, preferredSprint]);
+  const workspaceOptions = buildWorkspaceOptions(workspaces, favorites);
 
   const handleWorkspaceChange = (index, workspace) => {
     onChange(index, {
@@ -110,27 +56,11 @@ export default function WorkItemForm({
     onSubmit();
   };
 
-  const workspaceOptions = buildWorkspaceOptions(workspaces, favorites);
-
   return (
     <div className="work-item-form">
       <Space direction="vertical" size={12} style={{ width: '100%' }}>
         {workItems.map((item, index) => {
           const workspace = item.workspace_name || defaultWorkspace || undefined;
-          const sprints = (workspace && sprintsByWs[workspace]) || [];
-          const sprintIds = new Set(sprints.map((s) => s.object_id));
-          let sprintValue = item.sprint_id || '';
-          if (
-            !sprintValue &&
-            workspace === defaultWorkspace &&
-            preferredSprint &&
-            sprintIds.has(preferredSprint)
-          ) {
-            sprintValue = preferredSprint;
-          }
-          if (sprintValue && !sprintIds.has(sprintValue)) {
-            sprintValue = '';
-          }
 
           return (
             <div key={index} className="work-item-row">
@@ -151,18 +81,16 @@ export default function WorkItemForm({
                 options={workspaceOptions}
                 onChange={(v) => handleWorkspaceChange(index, v)}
               />
-              <Select
-                size="large"
-                className="work-item-sprint"
-                placeholder={workspace ? '请选择迭代' : '请先选择工作空间'}
-                showSearch
-                optionFilterProp="label"
-                allowClear
-                disabled={!workspace}
-                value={sprintValue || undefined}
-                options={sprints.map((s) => ({ value: s.object_id, label: s.name }))}
-                onChange={(v) => onChange(index, 'sprint_id', v || '')}
-              />
+              <div className="work-item-sprint">
+                <SprintSelect
+                  cookie={cookie}
+                  workspaceName={workspace || ''}
+                  value={item.sprint_id}
+                  preferredSprint={workspace === defaultWorkspace ? preferredSprint : ''}
+                  disabled={!workspace}
+                  onChange={(v) => onChange(index, 'sprint_id', v)}
+                />
+              </div>
               <div className="work-item-requirement">
                 <RequirementSelect
                   cookie={cookie}

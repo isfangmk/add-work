@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import quote
@@ -365,21 +366,29 @@ async def resolve_workspace_details(
 async def list_sprints(
     headers: Dict[str, str],
     workspace_key: str,
+    all_workspaces: bool = False,
+    keyword: str = "",
 ) -> Optional[List[Dict[str, Any]]]:
-    """拉取空间下未完成的迭代列表。"""
+    """拉取迭代列表。默认只当前空间未完成迭代；all_workspaces=True 拉全空间最近100条。keyword 按名称过滤。"""
     resp = None
+    where_workspace = (
+        {"$inQuery": {"where": {}, "limit": 9999, "className": "Workspace"}}
+        if all_workspaces
+        else {"$inQuery": {"where": {"key": workspace_key}, "className": "Workspace"}}
+    )
+    where: Dict[str, Any] = {
+        "workspace": where_workspace,
+        "completed": False,
+    }
+    kw = (keyword or "").strip()
+    if kw:
+        # 转义正则元字符，避免用户输入破坏查询；大小写不敏感
+        where["name"] = {"$regex": re.escape(kw), "$options": "i"}
     body = {
-        "where": {
-            "workspace": {
-                "$inQuery": {
-                    "where": {"key": workspace_key},
-                    "className": "Workspace",
-                }
-            },
-            "completed": False,
-        },
+        "where": where,
         "include": "workspace",
         "order": "-createdAt",
+        "limit": 100,
     }
     try:
         resp = await http_client.post(
@@ -389,7 +398,14 @@ async def list_sprints(
         )
         resp.raise_for_status()
         return [
-            {"object_id": item["objectId"], "name": item["name"]} for item in resp.json()["results"]
+            {
+                "object_id": item["objectId"],
+                "name": item["name"],
+                "workspace_name": (item.get("workspace") or {}).get("name", "")
+                if isinstance(item.get("workspace"), dict)
+                else "",
+            }
+            for item in resp.json()["results"]
         ]
     except Exception as exc:
         logger.error(format_http_error("获取迭代列表失败", exc, resp))

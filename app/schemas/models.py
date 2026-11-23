@@ -40,6 +40,8 @@ class FavoriteWorkspacesRequest(UserRequest):
 class SprintListRequest(BaseModel):
     cookie: str
     workspace_name: str
+    all_workspaces: bool = False
+    keyword: str = ""
 
 
 class WorkItemsRequest(BaseModel):

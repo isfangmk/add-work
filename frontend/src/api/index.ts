@@ -58,8 +58,8 @@ export function fetchWorkspaces(cookie: string): Promise<any> {
   return postJson(API.workspaceList, { cookie });
 }
 
-export function fetchSprints(cookie: string, workspaceName: string): Promise<any> {
-  return postJson(API.sprintList, { cookie, workspace_name: workspaceName });
+export function fetchSprints(cookie: string, workspaceName: string, allWorkspaces = false, keyword = ''): Promise<any> {
+  return postJson(API.sprintList, { cookie, workspace_name: workspaceName, all_workspaces: allWorkspaces, keyword });
 }
 
 export function searchRequirements(cookie: string, keyword: string = ''): Promise<any> {

@@ -75,21 +75,24 @@ async def save_favorite_workspaces_api(request: FavoriteWorkspacesRequest) -> JS
 async def get_sprint_list(request: SprintListRequest) -> JSONResponse:
     try:
         headers = settings.build_headers(request.cookie)
-        workspaces = await gitee.list_workspaces(headers)
-        if workspaces is None:
-            raise AuthAppError("获取工作空间列表失败，请检查Cookie是否有效")
-        workspace_key = next(
-            (
-                w["workspace_key"]
-                for w in workspaces
-                if w["workspace_name"] == request.workspace_name
-            ),
-            None,
+        workspace_key = ""
+        if not request.all_workspaces:
+            workspaces = await gitee.list_workspaces(headers)
+            if workspaces is None:
+                raise AuthAppError("获取工作空间列表失败，请检查Cookie是否有效")
+            workspace_key = next(
+                (
+                    w["workspace_key"]
+                    for w in workspaces
+                    if w["workspace_name"] == request.workspace_name
+                ),
+                "",
+            )
+            if not workspace_key:
+                raise WorkspaceNotFoundError(request.workspace_name)
+        sprints = await gitee.list_sprints(
+            headers, workspace_key, all_workspaces=request.all_workspaces, keyword=request.keyword
         )
-        if workspace_key is None:
-            raise WorkspaceNotFoundError(request.workspace_name)
-
-        sprints = await gitee.list_sprints(headers, workspace_key)
         if sprints is None:
             raise AuthAppError("获取迭代列表失败，请检查Cookie是否有效")
         return JSONResponse(ApiResponse.ok(data=sprints).model_dump())
