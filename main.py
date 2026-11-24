@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import sys
+import time
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -26,7 +27,7 @@ from app.core.background_tasks import spawn  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.core.exceptions import AppError  # noqa: E402
 from app.core.http_client import close_http_client  # noqa: E402
-from app.core.logger import get_logger  # noqa: E402
+from app.core.logger import get_logger, uvicorn_log_config  # noqa: E402
 from app.mcp import mcp_http_app, mcp_token_from_headers  # noqa: E402
 from app.schemas import ApiResponse  # noqa: E402
 from app.services.keepalive import restore_on_startup  # noqa: E402
@@ -82,6 +83,30 @@ app.mount(f"{PREFIX}/sqlite", WSGIMiddleware(sqlite_web_app))
 app.mount(f"{PREFIX}/mcp", mcp_http_app)
 
 _MCP_PATH = f"{PREFIX}/mcp"
+
+
+@app.middleware("http")
+async def access_log_middleware(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    """统一 HTTP 访问日志：方法、路径、状态码、耗时（毫秒）。"""
+    start = time.perf_counter()
+    response: Response | None = None
+    try:
+        response = await call_next(request)
+        return response
+    finally:
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        status = response.status_code if response is not None else 500
+        client = request.client.host if request.client else "-"
+        logger.info(
+            "%s %s %s %d %.1fms",
+            client,
+            request.method,
+            request.url.path,
+            status,
+            elapsed_ms,
+        )
 
 
 @app.middleware("http")
@@ -147,6 +172,14 @@ if __name__ == "__main__":
 
     logger.info("服务已启动: http://127.0.0.1:5000")
     try:
-        uvicorn.run("main:app", host="0.0.0.0", port=5000, reload=False, log_level="info")
+        uvicorn.run(
+            "main:app",
+            host="0.0.0.0",
+            port=5000,
+            reload=False,
+            log_level="info",
+            access_log=False,
+            log_config=uvicorn_log_config(),
+        )
     except KeyboardInterrupt:
         logger.info("服务已停止")
