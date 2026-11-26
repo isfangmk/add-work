@@ -12,7 +12,6 @@ class Settings:
     db_path: str = field(default_factory=lambda: os.getenv("DB_PATH", "tasks.db"))
 
     gitlab_url: str = "http://newgitlab.ibr.net.cn/"
-    project_ids: List[str] = field(default_factory=lambda: ["3", "40"])
     private_token: str = field(default_factory=lambda: os.getenv("PRIVATE_TOKEN", ""))
 
     openai_api_key: str = field(default_factory=lambda: os.getenv("OPENAI_API_KEY", ""))

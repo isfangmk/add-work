@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import time
 from datetime import date, timedelta
-from typing import Any, Dict, List, Optional, Sequence, Set, Union
+from typing import Any, Dict, List, Optional, Set, Union
 from urllib.parse import quote
 
 from app.core.config import settings
@@ -219,10 +219,9 @@ async def _commits_from_push_event(
     author: str,
     start_date: str,
     end_date: str,
-    allowed_projects: Set[str],
 ) -> List[Dict[str, str]]:
     project_id = event.get("project_id")
-    if project_id is None or str(project_id) not in allowed_projects:
+    if project_id is None:
         return []
 
     push = event.get("push_data") or {}
@@ -252,7 +251,6 @@ async def fetch_commits(
     author: str,
     start_date: str,
     end_date: str,
-    project_ids: Optional[Sequence[Union[str, int]]] = None,
 ) -> List[Dict[str, str]]:
     if not settings.private_token:
         logger.warning("PRIVATE_TOKEN 未设置")
@@ -263,14 +261,12 @@ async def fetch_commits(
         logger.warning("GitLab author 为空")
         return []
 
-    allowed = {str(pid) for pid in (project_ids or settings.project_ids)}
     started = time.perf_counter()
     logger.info(
-        "GitLab 拉取开始(事件) author=%s range=%s~%s projects=%s",
+        "GitLab 拉取开始(事件,全项目) author=%s range=%s~%s",
         author,
         start_date,
         end_date,
-        sorted(allowed),
     )
 
     user_id = await _resolve_user_id(author)
@@ -280,7 +276,7 @@ async def fetch_commits(
 
     events = await _list_push_events(user_id, start_date, end_date)
     batches = await asyncio.gather(
-        *[_commits_from_push_event(ev, author, start_date, end_date, allowed) for ev in events]
+        *[_commits_from_push_event(ev, author, start_date, end_date) for ev in events]
     )
 
     # 按 subject+date 去重，保持稳定顺序
