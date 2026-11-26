@@ -4,19 +4,44 @@
 
 ## 技术栈
 
-- **后端**: FastAPI + Python 3.12
-- **前端**: React 18 + Tailwind CSS
-- **数据库**: SQLite
-- **HTTP 客户端**: httpx
-- **AI**: OpenAI API
+### 前端（`frontend/`）
+
+2026 年现代前端方案，全量 TypeScript strict：
+
+| 领域 | 选型 | 版本 |
+|------|------|------|
+| 构建工具 | Vite | 8.3 |
+| 框架 | React | 19.3 |
+| 语言 | TypeScript（strict、bundler 解析） | 5.9 |
+| 样式 | Tailwind CSS v4（`@tailwindcss/vite` 插件，全部样式用工具类表达，无独立 CSS 文件） | 4.3 |
+| 基础组件 | `src/components/ui/` 下的轻量组件（基于 Radix primitives + CVA），业务组件在其上用 Tailwind 组装 | — |
+| 图标 | lucide-react | 1.x |
+| 服务端状态 | TanStack Query v5（缓存/轮询/自动刷新） | 5.x |
+| 客户端状态 | Zustand（persist middleware） | 5.x |
+| 表单校验 | 组件内受控状态 + 显式校验（不引入额外表单库） | — |
+| 日期 | date-fns | 4.x |
+| 通知 | sonner | 2.x |
+| 测试 | Vitest + @testing-library/react + user-event + jsdom | 5.x |
+
+### 后端
+
+| 领域 | 选型 |
+|------|------|
+| Web 框架 | FastAPI + Pydantic v2（Python 3.12） |
+| 依赖管理 | uv（`uv.lock` 锁定）、ruff、basedpyright |
+| HTTP 客户端 | httpx（AsyncClient） |
+| 数据库 | SQLite |
+| AI | OpenAI API（火山引擎 /doubao） |
+| MCP | FastMCP（Streamable HTTP，与网页同进程） |
+| 测试 | pytest（临时 DB fixture，禁止真实写入） |
 
 ## 本地部署
 
 ### 前置要求
 
 - Python 3.12+
-- Node.js 18+
-- npm/yarn
+- Node.js 22+（Vite 8 要求；当前验证版本 v22.21.1）
+- npm 10+
 
 ### 环境变量配置
 
@@ -77,10 +102,10 @@ npm install
 2. 开发模式运行
 
 ```bash
-npm start
+npm run dev
 ```
 
-前端开发服务器将在 `http://localhost:3000` 启动
+前端开发服务器将在 `http://localhost:5173/add-work/` 启动（Vite 8，base 为 `/add-work/`）
 
 3. 生产构建
 
@@ -141,6 +166,8 @@ make build          # 前端 build + Docker 镜像构建
 | 后端格式化 | `uv run ruff format .` |
 | 后端测试 | `uv run pytest -q` |
 | 前端类型检查 | `cd frontend && npm run typecheck` |
+| 前端测试 | `cd frontend && npm run test`（Vitest，不调用真实 API） |
+| 前端测试（监听模式） | `cd frontend && npm run test:watch` |
 | 前端构建 | `cd frontend && npm run build` |
 
 测试安全：pytest 会自动把数据库指向临时文件（`tests/conftest.py`），并通过兜底 fixture 禁止真实写入工时（`gitee.clone_item` / `gitee.update_item`）；搜索等只读查询不受影响。
