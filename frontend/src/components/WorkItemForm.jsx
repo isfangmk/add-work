@@ -94,6 +94,7 @@ export default function WorkItemForm({
               <div className="work-item-requirement">
                 <RequirementSelect
                   cookie={cookie}
+                  username={username}
                   value={item.requirement_id}
                   initialLabel={
                     item.requirement_name

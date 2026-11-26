@@ -6,7 +6,7 @@ import RequirementSelect from './RequirementSelect';
 import SprintSelect from './SprintSelect';
 import { buildWorkspaceOptions } from '../utils/workspaceOptions';
 
-export default function EditItemModal({ open, item, cookie, favorites, onClose, onSubmit }) {
+export default function EditItemModal({ open, item, cookie, username, favorites, onClose, onSubmit }) {
   const [form] = Form.useForm();
   const workspaces = useWorkspaces(cookie, open);
   const [error, setError] = useState('');
@@ -104,6 +104,7 @@ export default function EditItemModal({ open, item, cookie, favorites, onClose, 
         >
           <RequirementSelect
             cookie={cookie}
+            username={username}
             placeholder="请选择关联需求"
             initialLabel={
               item?.requirement_name

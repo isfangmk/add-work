@@ -28,6 +28,47 @@ export function loadCookie(): string {
   return '';
 }
 
+const RECENT_SEARCH_PREFIX = 'add-work:recent-requirement-search:';
+const RECENT_SEARCH_MAX = 3;
+
+function recentSearchKey(username?: string): string {
+  return `${RECENT_SEARCH_PREFIX}${username?.trim() || 'default'}`;
+}
+
+export function loadRecentSearches(username?: string): string[] {
+  try {
+    const raw = localStorage.getItem(recentSearchKey(username));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string').slice(0, RECENT_SEARCH_MAX) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** 记录一次搜索：去重、最近优先，最多保留 3 条。 */
+export function rememberSearch(username: string | undefined, keyword: string): string[] {
+  const clean = keyword.trim();
+  if (!clean) return loadRecentSearches(username);
+  const next = [clean, ...loadRecentSearches(username).filter((k) => k !== clean)].slice(0, RECENT_SEARCH_MAX);
+  try {
+    localStorage.setItem(recentSearchKey(username), JSON.stringify(next));
+  } catch {
+    // localStorage 不可用时仅保留内存结果
+  }
+  return next;
+}
+
+export function forgetSearch(username: string | undefined, keyword: string): string[] {
+  const next = loadRecentSearches(username).filter((k) => k !== keyword);
+  try {
+    localStorage.setItem(recentSearchKey(username), JSON.stringify(next));
+  } catch {
+    // 忽略存储失败
+  }
+  return next;
+}
+
 export function shouldShowWelcomePromo(): boolean {
   return localStorage.getItem(WELCOME_HIDE_KEY) !== '1';
 }

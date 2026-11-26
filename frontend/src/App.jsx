@@ -120,6 +120,7 @@ export default function App() {
           open={app.editOpen}
           item={app.sourceItem}
           cookie={app.cookie}
+          username={app.username}
           favorites={app.favorites}
           onClose={() => app.setEditOpen(false)}
           onSubmit={app.submitUpdate}
