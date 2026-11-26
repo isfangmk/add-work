@@ -20,8 +20,20 @@ export const API = {
 interface ApiEnvelope {
   success?: boolean;
   msg?: string;
-  detail?: string;
+  detail?: string | Array<{ msg?: string; loc?: (string | number)[] }>;
   data?: any;
+}
+
+function formatDetail(detail: ApiEnvelope["detail"]): string {
+  if (!detail) return '';
+  if (typeof detail === 'string') return detail;
+  // FastAPI 422 校验错误：detail 是 [{loc, msg, type}, ...]
+  return detail
+    .map((item) => {
+      const field = item.loc?.filter((p) => p !== 'body').join('.');
+      return field ? `${field}: ${item.msg || '参数错误'}` : item.msg || '参数错误';
+    })
+    .join('；');
 }
 
 async function parseResponse(res: Response): Promise<any> {
@@ -32,7 +44,7 @@ async function parseResponse(res: Response): Promise<any> {
     throw new Error(`服务器返回了无效响应（HTTP ${res.status}）`);
   }
   if (!res.ok) {
-    throw new Error(body.detail || body.msg || `请求失败（HTTP ${res.status}）`);
+    throw new Error(formatDetail(body.detail) || body.msg || `请求失败（HTTP ${res.status}）`);
   }
   return body;
 }

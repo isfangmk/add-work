@@ -363,7 +363,7 @@ export function useWorkHoursApp() {
     try {
       const { monday, sunday } = getWeekRange(weekOffset);
       const data = await fetchLlmSummary({
-        gitEmail,
+        git_email: gitEmail,
         start_date: formatDate(monday),
         end_date: formatDate(sunday),
         exclude_dates: Array.from(filledDates)
