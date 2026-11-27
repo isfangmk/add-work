@@ -48,9 +48,9 @@ export function WorkItemForm({
       {workItems.map((item, index) => {
         const workspace = item.workspace_name || defaultWorkspace || ''
         return (
-          <div key={item.id || index} className="grid grid-cols-1 gap-2 rounded-lg border bg-muted/20 p-3 md:grid-cols-[1.4fr_1fr_1fr_1.4fr_0.5fr_1fr_auto] md:items-center">
-            <div className="space-y-1">
-              <Label className="text-[11px] text-muted-foreground">事项名称</Label>
+          <div key={item.id || index} className="grid grid-cols-1 gap-2 rounded-lg border bg-muted/20 p-3 md:grid-cols-[1.2fr_1fr_1fr_1.4fr_0.5fr_1fr_auto] md:items-center">
+            <div className="min-w-0 space-y-1">
+              <Label className="whitespace-nowrap text-[11px] text-muted-foreground">事项名称</Label>
               <Input
                 className="h-11"
                 value={item.name}
@@ -58,8 +58,8 @@ export function WorkItemForm({
                 placeholder="事项名称"
               />
             </div>
-            <div className="space-y-1">
-              <Label className="text-[11px] text-muted-foreground">工作空间</Label>
+            <div className="min-w-0 space-y-1">
+              <Label className="whitespace-nowrap text-[11px] text-muted-foreground">工作空间</Label>
               <WorkspaceSelect
                 size="large"
                 value={workspace}
@@ -68,8 +68,8 @@ export function WorkItemForm({
                 onChange={(v) => onChange(index, { workspace_name: v, sprint_id: '' })}
               />
             </div>
-            <div className="space-y-1">
-              <Label className="text-[11px] text-muted-foreground">迭代</Label>
+            <div className="min-w-0 space-y-1">
+              <Label className="whitespace-nowrap text-[11px] text-muted-foreground">迭代</Label>
               <SprintSelect
                 size="large"
                 value={item.sprint_id}
@@ -81,8 +81,8 @@ export function WorkItemForm({
                 onChange={(v, name) => onChange(index, { sprint_id: v, sprint: name || '' })}
               />
             </div>
-            <div className="space-y-1">
-              <Label className="text-[11px] text-muted-foreground">关联需求</Label>
+            <div className="min-w-0 space-y-1">
+              <Label className="whitespace-nowrap text-[11px] text-muted-foreground">关联需求</Label>
               <RequirementSelect
                 size="large"
                 value={item.requirement_id}
@@ -92,8 +92,8 @@ export function WorkItemForm({
                 onChange={(id, name) => onChange(index, { requirement_id: id, requirement_name: name })}
               />
             </div>
-            <div className="space-y-1">
-              <Label className="text-[11px] text-muted-foreground">工时</Label>
+            <div className="min-w-0 space-y-1">
+              <Label className="whitespace-nowrap text-[11px] text-muted-foreground">工时</Label>
               <Input
                 className="h-11"
                 type="number"
@@ -104,8 +104,8 @@ export function WorkItemForm({
                 placeholder="工时"
               />
             </div>
-            <div className="space-y-1">
-              <Label className="text-[11px] text-muted-foreground">日期</Label>
+            <div className="min-w-0 space-y-1">
+              <Label className="whitespace-nowrap text-[11px] text-muted-foreground">日期</Label>
               <Input
                 className="h-11"
                 type="date"

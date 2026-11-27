@@ -33,7 +33,7 @@ export function WorkspaceSelect({ value, onChange, cookie, favorites, disabled, 
           variant="outline"
           role="combobox"
           disabled={disabled}
-          className={cn('w-full justify-between font-normal', size === 'large' && 'h-11', !value && 'text-muted-foreground')}
+          className={cn('flex w-full min-w-0 justify-between font-normal', size === 'large' && 'h-11', !value && 'text-muted-foreground')}
         >
           <span className="flex items-center gap-1 truncate">
             {favNames.has(value) && <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />}

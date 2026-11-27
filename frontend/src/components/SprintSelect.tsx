@@ -56,7 +56,7 @@ export function SprintSelect({ value, onChange, cookie, workspaceName, preferred
           variant="outline"
           role="combobox"
           disabled={disabled || (!workspaceName && onlyCurrent)}
-          className={cn('w-full justify-between font-normal', size === 'large' && 'h-11', !value && 'text-muted-foreground')}
+          className={cn('flex w-full min-w-0 justify-between font-normal', size === 'large' && 'h-11', !value && 'text-muted-foreground')}
         >
           <span className="truncate">{label || (workspaceName || !onlyCurrent ? '请选择迭代' : '请先选择工作空间')}</span>
           {isFetching ? <Loader2 className="ml-2 h-4 w-4 animate-spin opacity-50" /> : <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />}

@@ -70,7 +70,7 @@ export function RequirementSelect({ value, onChange, cookie, username, initialLa
           variant="outline"
           role="combobox"
           disabled={disabled}
-          className={cn('w-full justify-between font-normal', size === 'large' && 'h-11', !value && 'text-muted-foreground')}
+          className={cn('flex w-full min-w-0 justify-between font-normal', size === 'large' && 'h-11', !value && 'text-muted-foreground')}
         >
           <span className="truncate">{label || placeholder}</span>
           {isFetching ? <Loader2 className="ml-2 h-4 w-4 animate-spin opacity-50" /> : <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />}
