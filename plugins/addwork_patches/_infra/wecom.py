@@ -6,7 +6,7 @@ import logging
 
 import httpx
 
-logger = logging.getLogger("addwork_plugins.wecom")
+logger = logging.getLogger("addwork_patches.wecom")
 
 
 async def send_markdown_async(message: str, url: str) -> bool:

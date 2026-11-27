@@ -15,9 +15,9 @@ from typing import Any
 
 from funcpatch import PatchSpec
 
-from ._infra.wecom import send_markdown_async
+from .._infra.wecom import send_markdown_async
 
-logger = logging.getLogger("addwork_patches.worklog")
+logger = logging.getLogger("addwork_patches.worklog_pusher")
 
 _TRUE_VALUES = {"1", "true", "yes", "on"}
 

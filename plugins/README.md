@@ -95,10 +95,12 @@ plugins/
     ├── __init__.py                SPECS = 全部补丁声明
     ├── bootstrap.py               .pth 引导：funcpatch bootstrap / shutdown
     ├── _infra/wecom.py            企业微信发送（公共基础设施）
-    ├── worklog_pusher.py          finish_task wrap 补丁 + 异步推送逻辑
-    ├── jump_url_fix.py            run_work_task async wrap 补丁 + IQL 缓存预热
-    └── weekly_reminder/
-        ├── __init__.py            init_db wrap 补丁
+    ├── worklog_pusher/            finish_task wrap 补丁 + 异步推送逻辑
+    │   └── __init__.py
+    ├── jump_url_fix/              run_work_task async wrap 补丁 + IQL 缓存预热
+    │   └── __init__.py
+    └── weekly_reminder/           init_db wrap 补丁 + 周报调度
+        ├── __init__.py
         ├── config.py              环境变量配置
         ├── cal.py                 工作日/节假日计算
         ├── builtin.py             周报业务逻辑（查询/汇总/消息）
