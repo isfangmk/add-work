@@ -2,8 +2,8 @@
 FROM python:3.12-slim
 WORKDIR /work
 
-# 清华 pip 源（阿里云源当前不可达）
-ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+# 阿里云 pip 源，加速构建
+ARG PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
 ENV PIP_INDEX_URL=${PIP_INDEX_URL} \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     TZ=Asia/Shanghai
