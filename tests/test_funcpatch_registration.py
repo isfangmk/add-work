@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from funcpatch import get_registry, is_patched
 
-from plugins import SPECS, finish_task_spec, init_db_spec, run_work_task_spec
+from plugins.bootstrap import SPECS, finish_task_spec, init_db_spec, run_work_task_spec
 
 
 def test_specs_registered():
@@ -49,3 +49,30 @@ def test_original_functions_recoverable():
         original = reg.get_original(spec.target)
         assert original is not None
         assert callable(original)
+
+
+def test_package_init_does_not_import_patches():
+    """包初始化不得导入补丁。
+
+    Python 导入 ``plugins.<子包>`` 前会先执行 ``plugins/__init__.py``，
+    若在此处导入全部补丁，单独引入一个补丁就会连带加载其余补丁。
+    """
+    import ast
+    import pathlib
+
+    init_src = pathlib.Path(__file__).resolve().parent.parent / "plugins" / "__init__.py"
+    tree = ast.parse(init_src.read_text(encoding="utf-8"))
+
+    imported: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported.extend(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            # __future__ 之类的特殊导入不算业务依赖
+            if node.module == "__future__":
+                continue
+            imported.extend(
+                f"{node.module or '.' * node.level}.{alias.name}" for alias in node.names
+            )
+
+    assert imported == [], f"plugins/__init__.py 不应导入补丁，实际导入了：{imported}"

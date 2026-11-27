@@ -223,7 +223,7 @@ def _real_name(username: str) -> str:
 
 
 def send_notification(message: str, url: str) -> bool:
-    from .._infra.wecom import send_markdown
+    from ..wecom import send_markdown
 
     ok = send_markdown(message, url)
     if ok:

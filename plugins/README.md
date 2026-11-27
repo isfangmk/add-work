@@ -10,7 +10,7 @@
 | `worklog_pusher` | `addwork` | `app.storage.task_store:finish_task`（wrap） | 页面/MCP 任务完成写入状态时，把该任务执行日志推送企业微信。事件驱动，无轮询。 |
 | `jump_url_fix` | `addwork` | `app.services.work:run_work_task`（async wrap） | 任务执行前预热 IQL 缓存，修复直接提交任务时“去项目空间查看结果”链接不生成。 |
 
-三个补丁互不依赖：企业微信发送在公共层 `plugins/_infra/wecom.py`，各自独立调用；
+三个补丁互不依赖：企业微信发送在公共层 `plugins/wecom.py`，各自独立调用；
 禁用任一补丁不影响另一个。每个目标只有一个 owner 生效，由 funcpatch 进程级占用表保证。
 
 ---
@@ -91,9 +91,9 @@ python start_all.py --reminder
 plugins/
 ├── README.md                      本说明
 ├── install.py                     安装/卸载 .pth 启动钩子
-├── __init__.py                    SPECS = 全部补丁声明
-├── bootstrap.py                   .pth 引导：funcpatch bootstrap / shutdown
-├── _infra/wecom.py                企业微信发送（公共基础设施）
+├── __init__.py                    空包声明（不导入补丁，避免连带加载）
+├── bootstrap.py                   .pth 引导：注册补丁、SPECS 清单
+├── wecom.py                       企业微信发送（公共基础设施）
 ├── worklog_pusher/                finish_task wrap 补丁 + 异步推送逻辑
 │   └── __init__.py
 ├── jump_url_fix/                  run_work_task async wrap 补丁 + IQL 缓存预热

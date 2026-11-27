@@ -168,7 +168,7 @@ def test_send_notification_payload(monkeypatch):
             captured["json"] = json
             return _FakeResponse()
 
-    import plugins._infra.wecom as wecom
+    import plugins.wecom as wecom
 
     monkeypatch.setattr(wecom.httpx, "Client", lambda **kwargs: _FakeClient())
     assert builtin.send_notification(message="hello", url="http://mock/webhook") is True

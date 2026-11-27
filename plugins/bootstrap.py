@@ -4,19 +4,25 @@
 这里只注册补丁与延迟钩子，不导入主分支目标模块，不改动任何主分支源码。
 补丁是否生效由 funcpatch 的三层 owner 选择与 FUNC_PATCH_ENABLED 决定；
 业务侧再按 REMINDER_ENABLED / WORKLOG_PUSH_ENABLED 决定是否实际动作。
+
+导入本模块即完成注册（.pth 依赖这一行为）。
 """
 
 from __future__ import annotations
 
 import logging
 
-from funcpatch import SelectionConfig
+from funcpatch import PatchSpec, SelectionConfig
 from funcpatch import bootstrap as fp_bootstrap
 from funcpatch.config import load_config
 
-from . import SPECS
+from .jump_url_fix import run_work_task_spec
+from .weekly_reminder import init_db_spec
+from .worklog_pusher import finish_task_spec
 
 logger = logging.getLogger("plugins.bootstrap")
+
+SPECS: list[PatchSpec] = [finish_task_spec, init_db_spec, run_work_task_spec]
 
 _registry = None
 

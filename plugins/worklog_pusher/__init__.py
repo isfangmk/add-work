@@ -15,7 +15,7 @@ from typing import Any
 
 from funcpatch import PatchSpec
 
-from .._infra.wecom import send_markdown_async
+from ..wecom import send_markdown_async
 
 logger = logging.getLogger("plugins.worklog_pusher")
 
