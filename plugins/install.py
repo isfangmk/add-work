@@ -19,7 +19,6 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-PLUGIN_DIR = REPO_ROOT / "plugins"
 PTH_NAME = "_addwork_funcpatch.pth"
 OLD_PTH_NAME = "_addwork_weekly_reminder.pth"
 
@@ -33,8 +32,9 @@ def _site_packages() -> Path:
 
 
 def _pth_content() -> str:
-    plugin_parent = str(PLUGIN_DIR).replace("\\", "/")
-    return f"{plugin_parent}\nimport addwork_patches.bootstrap\n"
+    # 补丁包名为 plugins，.pth 需把仓库根目录加入 sys.path
+    repo_root = str(REPO_ROOT).replace("\\", "/")
+    return f"{repo_root}\nimport plugins.bootstrap\n"
 
 
 def _ensure_funcpatch() -> None:
@@ -61,7 +61,7 @@ def install() -> None:
     pth = sp / PTH_NAME
     pth.write_text(_pth_content(), encoding="utf-8")
     print(f"[OK] 已写入启动钩子: {pth}")
-    print("     解释器启动时将 import addwork_patches.bootstrap")
+    print("     解释器启动时将 import plugins.bootstrap")
     print()
     print("启用业务动作（在当前 shell）：")
     print("  export REMINDER_ENABLED=true       # 上周工时周报（启动时调度）")

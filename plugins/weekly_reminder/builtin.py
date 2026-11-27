@@ -19,16 +19,14 @@ import httpx
 from . import cal
 from .config import settings
 
-logger = logging.getLogger("addwork_patches.weekly")
+logger = logging.getLogger("plugins.weekly_reminder")
 
 
 def _resolve_db_path() -> str:
     if os.path.isabs(settings.db_path):
         return settings.db_path
-    # 本文件位于 plugins/addwork_patches/weekly_reminder/，上四级为项目根
-    repo_root = os.path.dirname(
-        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    )
+    # 本文件位于 plugins/weekly_reminder/，上三级为项目根
+    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     return os.path.join(repo_root, settings.db_path)
 
 

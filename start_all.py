@@ -36,12 +36,12 @@ def _pth_path() -> Path:
 
 def start(enable_reminder: bool = False, enable_worklog: bool = True) -> None:
     now = datetime.now(ZoneInfo("Asia/Shanghai"))
-    plugins = ROOT / "plugins"
 
-    # 写入 .pth 启动钩子（插件自启动入口）
+    # 写入 .pth 启动钩子（插件自启动入口）；补丁包名为 plugins，
+    # .pth 需把仓库根目录加入 sys.path
     pth = _pth_path()
     pth.write_text(
-        f"{str(plugins).replace(chr(92), '/')}\nimport addwork_patches.bootstrap\n",
+        f"{str(ROOT).replace(chr(92), '/')}\nimport plugins.bootstrap\n",
         encoding="utf-8",
     )
     print(f"[启动钩子] {pth}")

@@ -7,8 +7,9 @@
 
 from __future__ import annotations
 
-from addwork_patches import SPECS, finish_task_spec, init_db_spec, run_work_task_spec
 from funcpatch import get_registry, is_patched
+
+from plugins import SPECS, finish_task_spec, init_db_spec, run_work_task_spec
 
 
 def test_specs_registered():

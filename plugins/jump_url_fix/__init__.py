@@ -19,7 +19,7 @@ from urllib.parse import quote
 
 from funcpatch import PatchSpec
 
-logger = logging.getLogger("addwork_patches.jump_url_fix")
+logger = logging.getLogger("plugins.jump_url_fix")
 
 
 def _warm_iql_cache(wrapped: Any, args: tuple, kwargs: dict) -> None:

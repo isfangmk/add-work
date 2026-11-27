@@ -1,4 +1,4 @@
-"""周报补丁（addwork_patches.weekly_reminder）的单元测试。
+"""周报补丁（plugins.weekly_reminder）的单元测试。
 
 只测补丁自身逻辑：工作日计算、缺失判定、消息构造、调度门控与幂等、
 通知请求体。不访问真实网络，不依赖 .pth。
@@ -11,7 +11,8 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 import pytest
-from addwork_patches.weekly_reminder import builtin, cal, config, runner
+
+from plugins.weekly_reminder import builtin, cal, config, runner
 
 # --------------------------- 工作日计算 ---------------------------
 
@@ -167,7 +168,7 @@ def test_send_notification_payload(monkeypatch):
             captured["json"] = json
             return _FakeResponse()
 
-    import addwork_patches._infra.wecom as wecom
+    import plugins._infra.wecom as wecom
 
     monkeypatch.setattr(wecom.httpx, "Client", lambda **kwargs: _FakeClient())
     assert builtin.send_notification(message="hello", url="http://mock/webhook") is True

@@ -1,6 +1,6 @@
 """解释器启动引导：把 add-work 补丁交给 funcpatch 管理。
 
-.pth 中的 ``import addwork_patches.bootstrap`` 在解释器启动时执行；
+.pth 中的 ``import plugins.bootstrap`` 在解释器启动时执行；
 这里只注册补丁与延迟钩子，不导入主分支目标模块，不改动任何主分支源码。
 补丁是否生效由 funcpatch 的三层 owner 选择与 FUNC_PATCH_ENABLED 决定；
 业务侧再按 REMINDER_ENABLED / WORKLOG_PUSH_ENABLED 决定是否实际动作。
@@ -16,7 +16,7 @@ from funcpatch.config import load_config
 
 from . import SPECS
 
-logger = logging.getLogger("addwork_patches.bootstrap")
+logger = logging.getLogger("plugins.bootstrap")
 
 _registry = None
 

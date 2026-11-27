@@ -10,7 +10,8 @@ import inspect
 from urllib.parse import quote
 
 import pytest
-from addwork_patches import jump_url_fix
+
+from plugins import jump_url_fix
 
 
 def _expected_iql(username: str) -> str:

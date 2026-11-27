@@ -16,7 +16,7 @@ from funcpatch import PatchSpec
 from . import config as _config
 from .runner import start_scheduler
 
-logger = logging.getLogger("addwork_patches.weekly")
+logger = logging.getLogger("plugins.weekly_reminder")
 
 
 def _enabled() -> bool:

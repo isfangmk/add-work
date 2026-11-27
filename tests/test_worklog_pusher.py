@@ -1,4 +1,4 @@
-"""工时填报结果推送补丁（addwork_patches.worklog_pusher）的单元测试。
+"""工时填报结果推送补丁（plugins.worklog_pusher）的单元测试。
 
 覆盖 finish_task wrap 补丁的触发、消息格式、幂等、开关与非阻塞；
 webhook 全部 mock，不访问真实网络。推送走原生 asyncio。
@@ -9,7 +9,8 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-from addwork_patches import worklog_pusher as wp
+
+from plugins import worklog_pusher as wp
 
 
 async def _drain_pending():

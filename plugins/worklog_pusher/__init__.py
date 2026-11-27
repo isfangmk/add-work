@@ -17,7 +17,7 @@ from funcpatch import PatchSpec
 
 from .._infra.wecom import send_markdown_async
 
-logger = logging.getLogger("addwork_patches.worklog_pusher")
+logger = logging.getLogger("plugins.worklog_pusher")
 
 _TRUE_VALUES = {"1", "true", "yes", "on"}
 

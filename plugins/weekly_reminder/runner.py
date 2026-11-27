@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 from . import builtin
 from .config import settings
 
-logger = logging.getLogger("addwork_patches.weekly")
+logger = logging.getLogger("plugins.weekly_reminder")
 
 
 def last_week_monday(today: date) -> date:

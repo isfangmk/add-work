@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 from datetime import date, timedelta
 
-logger = logging.getLogger("addwork_patches.weekly")
+logger = logging.getLogger("plugins.weekly_reminder")
 
 try:
     from chinese_calendar import is_holiday as _is_holiday
