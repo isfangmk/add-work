@@ -28,6 +28,9 @@ export WORKLOG_PUSH_ENABLED=true    # 工时填报日志推送
 # 正常启动主程序（启动命令不变）
 python main.py
 
+# 或用一体化脚本（自动设置当天调度时间便于立即触发周报）
+python start_all.py --reminder
+
 # 卸载：移除 .pth
 .venv/Scripts/python.exe plugins/install.py --uninstall
 ```

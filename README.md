@@ -207,8 +207,10 @@ add-work/
 │   ├── services/       # 业务编排与 Cookie 保活
 │   └── storage/        # SQLite 与任务状态
 ├── frontend/
+├── plugins/             # funcpatch 补丁集（周报 / 日志推送 / 跳转链接修复）
 ├── tests/              # pytest 单元测试
 ├── main.py
+├── start_all.py        # 一键启动前后端（并装载补丁）
 ├── Dockerfile
 ├── entrypoint.sh
 ├── pyproject.toml      # 后端依赖 + ruff/pytest 配置
