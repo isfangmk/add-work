@@ -9,3 +9,10 @@ __pycache__
 .venv/
 .pytest_cache/
 .ruff_cache/
+
+# 运行日志与测试临时目录
+/logs/
+/.pytest_basetemp/
+
+# 迭代记录：仅本地保留
+/ITERATION.md

@@ -183,6 +183,17 @@ make build          # 前端 build + Docker 镜像构建
 - 🐳 支持 Docker 容器化部署
 - 🔌 MCP Server（FastMCP），可供 Cursor 等客户端调用工时能力
 
+### 关于直接提交任务缺少“去项目空间查看结果”链接
+
+`app/services/work.py` 的任务完成日志中，只有满足 `gitee.workspace_iql_cache` 有缓存
+且工作空间解析出 `jump_url` 时，才会输出“😎 去项目空间查看结果吧”。该缓存此前只在
+日历工时查询（`gitee.search_work_items`）时写入，因此通过 API / MCP / 页面直接提交任务、
+没有先打开日历页时，链接不会生成。
+
+此问题由 funcpatch 补丁修复（不改主分支源码）：`plugins/addwork_patches/jump_url_fix.py`
+以 wrap 方式挂接 `run_work_task`，在任务执行前按 `username + workspace_names` 预热 IQL 缓存，
+使主分支原有 `jump_url` 逻辑照常工作。详见 `plugins/README.md`。
+
 ## 项目结构
 
 ```
