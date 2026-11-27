@@ -1,19 +1,16 @@
-# ---------- 构建阶段：用 uv 安装依赖 ----------
-FROM ghcr.io/astral-sh/uv:python3.12-slim AS builder
-WORKDIR /work
-# 国内 pip 源，加速构建（阿里云源当前不可达，用清华源）
-ENV UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
-COPY pyproject.toml uv.lock ./
-# 只装依赖，不安装项目本身（源码在下面直接 COPY，无需可编辑安装）
-RUN uv sync --frozen --no-dev --no-install-project
-
-# ---------- 运行阶段：只保留虚拟环境与源码 ----------
+# 单阶段构建：pip 安装依赖后拷入源码
 FROM python:3.12-slim
 WORKDIR /work
-COPY --from=builder /work/.venv /work/.venv
-# 让 entrypoint.sh 里的 python 指向虚拟环境
-ENV PATH="/work/.venv/bin:$PATH"
-ENV TZ=Asia/Shanghai
+
+# 清华 pip 源（阿里云源当前不可达）
+ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ENV PIP_INDEX_URL=${PIP_INDEX_URL} \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    TZ=Asia/Shanghai
+
+# 先装依赖，利用镜像层缓存
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/  ./app
 COPY frontend/build ./frontend/build
