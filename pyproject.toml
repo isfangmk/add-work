@@ -11,6 +11,8 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "sqlite-web>=0.8.0",
     "fastmcp>=2.12.0,<3",
+    # funcpatch 补丁集的运行时依赖
+    "funcpatch>=0.1",
 ]
 
 [dependency-groups]
