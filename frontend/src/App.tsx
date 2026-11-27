@@ -69,7 +69,6 @@ export default function App() {
 
   const {
     data: calendarRaw, isLoading: calendarLoading, isError: calendarIsError, error: calendarQueryError,
-    refetch: refetchCalendar,
   } = useWorkItems({
     cookie,
     start_date: formatDate(weekRange.monday),
@@ -155,15 +154,18 @@ export default function App() {
   }, [])
 
   const refreshAfterTask = useCallback((opts: { jumpCurrentWeek?: boolean; scrollWeekend?: boolean } = {}) => {
-    // 先清除缓存，确保跳转后不会读到任务执行前的旧数据
-    queryClient.invalidateQueries({ queryKey: ['workItems'] })
-    if (opts.jumpCurrentWeek && weekOffset !== 0) setWeekOffset(0)
-    else refetchCalendar()
+    if (opts.jumpCurrentWeek && weekOffset !== 0) {
+      // 切周会改变 useWorkItems 的 queryKey，新一周数据随 key 变化自动加载一次
+      setWeekOffset(0)
+    } else {
+      // 当前周不变：使 workItems 失效，由 React Query 重新请求一次
+      queryClient.invalidateQueries({ queryKey: ['workItems'] })
+    }
     if (opts.scrollWeekend) {
       pendingScrollRef.current = true
       calendarRef.current?.scrollToRight()
     }
-  }, [weekOffset, setWeekOffset, refetchCalendar, queryClient])
+  }, [weekOffset, setWeekOffset, queryClient])
 
   const handleAddItem = () => {
     setWorkItems((prev) => [...prev, createWorkItem({ workspace_name: sourceItem?.workspace_name || '' })])
