@@ -117,6 +117,9 @@ npm run build
 
 ## Docker 部署
 
+镜像内置 funcpatch 补丁集：构建时写入 `.pth` 启动钩子，容器启动即注册补丁，
+无需再往容器里拷贝插件。
+
 ### 构建镜像
 
 ```bash
@@ -125,16 +128,31 @@ docker build -t add-work .
 
 ### 运行容器
 
+敏感配置（API Key、webhook 地址等）建议放进 env 文件，不进版本库：
+
 ```bash
+cat > add-work.env <<'EOF'
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
+MODEL=doubao-seed-1-6-251015
+PRIVATE_TOKEN=your_gitlab_private_token_here
+# 补丁业务开关与通知地址
+WORKLOG_PUSH_ENABLED=true
+WORKLOG_PUSH_WEBHOOK_URL=https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=your_key
+REMINDER_ENABLED=true
+REMINDER_WEBHOOK_URL=https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=your_key
+EOF
+
 docker run -d \
   -p 5000:5000 \
-  -e OPENAI_API_KEY=your_openai_api_key_here \
-  -e OPENAI_BASE_URL=https://ark.cn-beijing.volces.com/api/v3 \
-  -e MODEL=doubao-seed-1-6-251015 \
-  -e PRIVATE_TOKEN=your_gitlab_private_token_here \
+  --env-file add-work.env \
+  -v /path/to/tasks.db:/work/tasks.db \
   --name add_work \
   add-work
 ```
+
+> 不配置 `WORKLOG_PUSH_WEBHOOK_URL` / `REMINDER_WEBHOOK_URL` 时，补丁仍会加载，
+> 但推送与周报不会发出（地址取不到时按"不推送"处理，不会报错）。
 
 ### 停止容器
 
