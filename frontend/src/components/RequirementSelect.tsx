@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { ChevronsUpDown, Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -24,8 +24,6 @@ export function RequirementSelect({ value, onChange, cookie, username, initialLa
   const [keyword, setKeyword] = useState('')
   const [active, setActive] = useState('')
   const [recent, setRecent] = useState(() => loadRecentSearches(username))
-  const inputRef = useRef<HTMLInputElement>(null)
-
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => { setRecent(loadRecentSearches(username)) }, [username])
@@ -46,20 +44,14 @@ export function RequirementSelect({ value, onChange, cookie, username, initialLa
     return () => { if (timer.current) clearTimeout(timer.current) }
   }, [keyword, runSearch])
 
-  // 回车：立即搜索并记录历史；捕获阶段拦截避免选中高亮项
-  useEffect(() => {
-    const el = inputRef.current
-    if (!el) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Enter') return
-      e.preventDefault()
-      e.stopPropagation()
-      if (timer.current) clearTimeout(timer.current)
-      runSearch(keyword, true)
-    }
-    el.addEventListener('keydown', onKey, true)
-    return () => el.removeEventListener('keydown', onKey, true)
-  }, [keyword, runSearch, open])
+  // 回车：立即搜索并记录历史；阻止 cmdk 把回车当作选中高亮项
+  const handleKeyDown = (e: ReactKeyboardEvent) => {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    e.stopPropagation()
+    if (timer.current) clearTimeout(timer.current)
+    runSearch(keyword, true)
+  }
 
   const label = value && initialLabel ? initialLabel : requirements.find((r) => r.id === value)?.name || value
 
@@ -87,10 +79,10 @@ export function RequirementSelect({ value, onChange, cookie, username, initialLa
       <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
         <Command shouldFilter={false}>
           <CommandInput
-            ref={inputRef}
             placeholder="输入关键字后回车搜索…"
             value={keyword}
             onValueChange={setKeyword}
+            onKeyDown={handleKeyDown}
           />
           {recent.length > 0 && (
             <div className="flex items-center gap-1.5 overflow-hidden whitespace-nowrap border-b px-3 py-2">

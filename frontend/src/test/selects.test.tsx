@@ -82,6 +82,18 @@ describe('RequirementSelect', () => {
     expect(input.compareDocumentPosition(screen.getByText('最近')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
+  it('回车搜索写入历史并展示', async () => {
+    const user = userEvent.setup()
+    render(wrap(<RequirementSelect value="" onChange={vi.fn()} cookie="C" username="fang" />))
+    await user.click(screen.getByRole('combobox'))
+    const input = screen.getByPlaceholderText('输入关键字后回车搜索…')
+    await user.type(input, '交付管理{Enter}')
+    await waitFor(() => {
+      expect(localStorage.getItem('add-work:recent-requirement-search:fang')).toBe('["交付管理"]')
+    })
+    expect(screen.getByText('最近')).toBeInTheDocument()
+  })
+
   it('历史 chip 可删除', async () => {
     const user = userEvent.setup()
     localStorage.setItem('add-work:recent-requirement-search:fang', JSON.stringify(['Titan']))
